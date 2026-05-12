@@ -67,6 +67,24 @@
       font: inherit;
     }
 
+    .icon-inline {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+    }
+
+    .icon-lg {
+      width: 26px;
+      height: 26px;
+      flex: 0 0 auto;
+    }
+
+    .icon-xl {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+    }
+
     .skip-link {
       position: absolute;
       left: 16px;
@@ -396,6 +414,7 @@
     .application-shell {
       position: sticky;
       top: calc(var(--header-height) + 20px);
+      scroll-margin-top: calc(var(--header-height) + 20px);
       padding: 14px;
       border: 1px solid rgba(216, 226, 238, 0.9);
       border-radius: 34px;
@@ -533,6 +552,59 @@
       border-color: #bae6fd;
     }
 
+    .progress-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .progress-card {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px;
+      border: 1px solid rgba(216, 226, 238, 0.92);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    .progress-card.complete {
+      border-color: #b9edd9;
+      background: linear-gradient(180deg, #ffffff 0%, #f1fbf6 100%);
+    }
+
+    .progress-icon {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: var(--primary-800);
+      background: #e0f2fe;
+      flex: 0 0 auto;
+    }
+
+    .progress-card.complete .progress-icon {
+      color: #087b56;
+      background: rgba(15, 159, 110, 0.14);
+    }
+
+    .progress-card strong {
+      display: block;
+      color: #12304c;
+      font-size: 13px;
+      line-height: 1.3;
+    }
+
+    .progress-card > div span {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
     form {
       margin: 0;
     }
@@ -584,8 +656,16 @@
     }
 
     .label-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       opacity: 0.7;
-      font-size: 15px;
+    }
+
+    .field-hint-inline {
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 700;
     }
 
     .input-wrapper {
@@ -753,6 +833,12 @@
       font-weight: 850;
     }
 
+    .file-meta-separator::before {
+      content: "|";
+      margin: 0 8px 0 10px;
+      color: #94a3b8;
+    }
+
     .remove-file {
       position: relative;
       z-index: 4;
@@ -787,6 +873,11 @@
       background: var(--surface-2);
     }
 
+    .consent-card.invalid {
+      border-color: #fecaca;
+      background: #fff7f6;
+    }
+
     .consent-card input {
       width: 18px;
       height: 18px;
@@ -809,13 +900,97 @@
 
     .turnstile-container {
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
       margin: 18px 0 16px;
-      padding: 16px;
+      padding: 18px;
       border: 1px solid var(--border);
       border-radius: 18px;
-      background: #fbfdff;
+      background: linear-gradient(180deg, #fbfdff 0%, #f5faff 100%);
       overflow: hidden;
+    }
+
+    .turnstile-container.invalid {
+      border-color: #fecaca;
+      background: linear-gradient(180deg, #fffafa 0%, #fff4f4 100%);
+    }
+
+    .verification-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .verification-header strong {
+      display: block;
+      color: #12304c;
+      font-size: 14px;
+      line-height: 1.3;
+    }
+
+    .verification-header > div span {
+      display: block;
+      margin-top: 4px;
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .verification-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 108px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid #dbeafe;
+      background: #eff6ff;
+      color: #075985;
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .verification-chip-verified {
+      border-color: #b9edd9;
+      background: #ecfdf5;
+      color: #0b6b4e;
+    }
+
+    .verification-chip-error,
+    .verification-chip-expired {
+      border-color: #fecaca;
+      background: #fff1f2;
+      color: #9f1f17;
+    }
+
+    .verification-chip-loading {
+      border-color: #dbeafe;
+      background: #eff6ff;
+      color: #075985;
+    }
+
+    .turnstile-widget {
+      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .turnstile-widget:empty::before {
+      content: "Loading secure verification...";
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .turnstile-widget-error:empty::before,
+    .turnstile-widget-expired:empty::before {
+      content: "Verification widget unavailable.";
+      color: #9f1f17;
     }
 
     .btn {
@@ -869,6 +1044,8 @@
     .btn-icon {
       position: relative;
       z-index: 1;
+      width: 18px;
+      height: 18px;
       transition: transform 0.2s ease;
     }
 
@@ -963,6 +1140,18 @@
 
     .success-details p:last-child {
       margin-bottom: 0;
+    }
+
+    .success-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .success-list li + li {
+      margin-top: 6px;
     }
 
     .hp-field {
@@ -1141,6 +1330,7 @@
       }
 
       .trust-strip,
+      .progress-grid,
       .benefit-grid,
       .process-grid,
       .faq-panel,
@@ -1239,7 +1429,15 @@
       .turnstile-container {
         margin-left: -4px;
         margin-right: -4px;
-        padding: 10px 4px;
+        padding: 12px 8px;
+      }
+
+      .verification-header {
+        display: block;
+      }
+
+      .verification-chip {
+        margin-top: 10px;
       }
 
       .cf-turnstile {
@@ -1296,6 +1494,7 @@ button[disabled] { cursor: not-allowed; }
   color: var(--error);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.45;
 }
 
 /* Verification helper added for Turnstile troubleshooting */

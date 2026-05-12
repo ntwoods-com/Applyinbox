@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE, TURNSTILE_SITE_KEY } from './config.js';
 
 const DRAFT_KEY = 'ntw_careers_apply_draft_v1';
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx'];
+const ALLOWED_EXTENSIONS = new Set(['pdf', 'doc', 'docx']);
+const ALLOWED_MIME_TYPES = new Set([
+  '',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
 
 const initialForm = {
   name: '',
@@ -36,7 +42,7 @@ const processSteps = [
 
 const faqItems = [
   ['Which file formats are accepted?', 'PDF, DOC and DOCX files are accepted up to 2MB. PDF is recommended for best compatibility.'],
-  ['Can I apply for other positions?', 'Yes. Select “Other” if your exact role is not available, and the HR team can review your profile accordingly.'],
+  ['Can I apply for other positions?', 'Yes. Select "Other" if your exact role is not available, and the HR team can review your profile accordingly.'],
   ['Will I receive a response?', 'Shortlisted candidates are contacted by HR. Response time depends on active requirements and role priority.'],
   ['Why is verification required?', 'Verification helps protect the form from automated or fake submissions.'],
 ];
@@ -62,10 +68,141 @@ const experienceOptions = [
   ['5', '5+ Years'],
 ];
 
+const POSITION_LABELS = Object.fromEntries(positions.filter(([value]) => value));
+const VALID_POSITIONS = new Set(positions.map(([value]) => value).filter(Boolean));
+const VALID_EXPERIENCE = new Set(experienceOptions.map(([value]) => value).filter(Boolean));
+
+function Icon({ name, className = '', title }) {
+  const sharedProps = {
+    className,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '1.8',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': title ? undefined : 'true',
+    role: title ? 'img' : undefined,
+  };
+
+  switch (name) {
+    case 'arrowRight':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M5 12h14" />
+          <path d="m13 5 7 7-7 7" />
+        </svg>
+      );
+    case 'check':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      );
+    case 'checkCircle':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8.8 12.3 11 14.5 15.5 10" />
+        </svg>
+      );
+    case 'alert':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M12 8v5" />
+          <path d="M12 16h.01" />
+          <path d="M10.3 3.8 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z" />
+        </svg>
+      );
+    case 'briefcase':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7" />
+          <path d="M4.5 7h15A1.5 1.5 0 0 1 21 8.5v8A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5v-8A1.5 1.5 0 0 1 4.5 7Z" />
+          <path d="M3 11.5h18" />
+        </svg>
+      );
+    case 'shield':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M12 3.5 5.5 6v5.5c0 4 2.5 7.2 6.5 9 4-1.8 6.5-5 6.5-9V6L12 3.5Z" />
+          <path d="m9.5 12 1.6 1.7 3.4-3.7" />
+        </svg>
+      );
+    case 'user':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
+        </svg>
+      );
+    case 'mail':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <rect x="3.5" y="5.5" width="17" height="13" rx="2.2" />
+          <path d="m4.5 7 7.5 5 7.5-5" />
+        </svg>
+      );
+    case 'phone':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M8.5 4.5h7a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 18V6a1.5 1.5 0 0 1 1.5-1.5Z" />
+          <path d="M11 16.5h2" />
+        </svg>
+      );
+    case 'pin':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M12 20s5-5.2 5-9a5 5 0 1 0-10 0c0 3.8 5 9 5 9Z" />
+          <circle cx="12" cy="11" r="1.8" />
+        </svg>
+      );
+    case 'clock':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7.5V12l3 2" />
+        </svg>
+      );
+    case 'file':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M8 3.8h6l4 4V20H8a2 2 0 0 1-2-2V5.8a2 2 0 0 1 2-2Z" />
+          <path d="M14 3.8v4h4" />
+          <path d="M9 14h6" />
+          <path d="M9 17h4" />
+        </svg>
+      );
+    case 'lock':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <rect x="5.5" y="11" width="13" height="9" rx="2" />
+          <path d="M8.5 11V8.5a3.5 3.5 0 1 1 7 0V11" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 function generateToken() {
   if (window.crypto && typeof window.crypto.randomUUID === 'function') {
     return `tkn_${window.crypto.randomUUID()}`;
   }
+
   return `tkn_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
 }
 
@@ -80,7 +217,9 @@ function getDraft() {
 }
 
 function sanitizeSource(value) {
-  return (value || '').replace(/[^a-zA-Z0-9 _.-]/g, '').slice(0, 40);
+  return String(value || '')
+    .replace(/[^a-zA-Z0-9 _.-]/g, '')
+    .slice(0, 40);
 }
 
 function getSourceText() {
@@ -88,11 +227,40 @@ function getSourceText() {
   return sanitizeSource(params.get('source') || params.get('utm_source') || params.get('ref'));
 }
 
+function normalizeSpaces(value) {
+  return String(value || '')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trimStart();
+}
+
+function sanitizeField(field, rawValue) {
+  if (field === 'mobile') {
+    return String(rawValue || '').replace(/\D/g, '').slice(0, 10);
+  }
+
+  if (field === 'email') {
+    return String(rawValue || '').replace(/\s+/g, '').slice(0, 100);
+  }
+
+  if (field === 'name') {
+    return normalizeSpaces(rawValue).slice(0, 100);
+  }
+
+  if (field === 'location') {
+    return normalizeSpaces(rawValue)
+      .replace(/[^A-Za-z0-9\u00C0-\u024F.,'()\/ -]/g, '')
+      .slice(0, 100);
+  }
+
+  return String(rawValue || '');
+}
+
 function validateValue(field, rawValue) {
   const value = String(rawValue || '').trim();
 
   if (field === 'name') {
-    return value.length >= 2 && /^[A-Za-zÀ-ž.'\-\s]{2,100}$/.test(value);
+    return value.length >= 2 && /^[A-Za-z\u00C0-\u024F.' -]{2,100}$/.test(value);
   }
 
   if (field === 'email') {
@@ -103,12 +271,50 @@ function validateValue(field, rawValue) {
     return !value || /^[6-9][0-9]{9}$/.test(value);
   }
 
+  if (field === 'location') {
+    return !value || /^[A-Za-z0-9\u00C0-\u024F.,'()\/ -]{2,100}$/.test(value);
+  }
+
+  if (field === 'position') {
+    return VALID_POSITIONS.has(value);
+  }
+
+  if (field === 'experience') {
+    return !value || VALID_EXPERIENCE.has(value);
+  }
+
   return true;
 }
 
+function getFieldError(field, validity) {
+  if (validity !== false) return '';
+
+  if (field === 'name') {
+    return 'Enter at least 2 letters. Numbers and unsupported symbols are not allowed.';
+  }
+
+  if (field === 'email') {
+    return 'Enter a valid email address.';
+  }
+
+  if (field === 'mobile') {
+    return 'Enter a valid 10-digit mobile number starting with 6-9, or leave this blank.';
+  }
+
+  if (field === 'location') {
+    return 'Use letters, numbers, comma, apostrophe, slash, parentheses, period or dash only.';
+  }
+
+  if (field === 'position') {
+    return 'Select the position you want to apply for.';
+  }
+
+  return '';
+}
+
 function fieldIcon(validity, value) {
-  if (validity === undefined || !String(value || '').trim()) return null;
-  return validity ? '✓' : '✕';
+  if (validity === undefined || !String(value || '').trim()) return '';
+  return validity ? 'check' : 'alert';
 }
 
 function fieldClass(validity, value) {
@@ -116,6 +322,26 @@ function fieldClass(validity, value) {
   if (validity === true) return 'valid';
   if (validity === false) return 'invalid';
   return '';
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return '< 1 KB';
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+async function fetchWithTimeout(url, options, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function App() {
@@ -131,22 +357,26 @@ function App() {
   const [buttonText, setButtonText] = useState('Submit Application');
   const [successApplyId, setSuccessApplyId] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const fileInputRef = useRef(null);
   const turnstileRef = useRef(null);
   const turnstileWidgetIdRef = useRef(null);
   const alertRef = useRef(null);
   const hpRef = useRef(null);
+  const sourceTextRef = useRef(getSourceText());
   const sessionTokenRef = useRef(generateToken());
   const formLoadTimeRef = useRef(Date.now());
-  const sourceText = useMemo(getSourceText, []);
+  const sourceText = sourceTextRef.current;
 
   useEffect(() => {
     let cancelled = false;
     let checks = 0;
 
     const renderTurnstile = () => {
-      if (cancelled || !turnstileRef.current || !window.turnstile || turnstileWidgetIdRef.current) return;
+      if (cancelled || !turnstileRef.current || !window.turnstile || turnstileWidgetIdRef.current) {
+        return;
+      }
 
       try {
         turnstileWidgetIdRef.current = window.turnstile.render(turnstileRef.current, {
@@ -161,12 +391,12 @@ function App() {
           'expired-callback': () => {
             setTurnstileToken('');
             setTurnstileStatus('expired');
-            showError('Verification expired. Please complete verification again.');
+            showError('Verification expired. Please complete the secure check again.');
           },
           'error-callback': () => {
             setTurnstileToken('');
             setTurnstileStatus('error');
-            showError('Verification could not be completed. Please check that this domain is allowed in Cloudflare Turnstile and try again.');
+            showError('Verification could not load correctly. Confirm this domain is allowed in Cloudflare Turnstile settings, then refresh and try again.');
           },
         });
         setTurnstileStatus('ready');
@@ -192,6 +422,7 @@ function App() {
     return () => {
       cancelled = true;
       window.clearInterval(turnstileWatch);
+
       if (window.turnstile && turnstileWidgetIdRef.current) {
         try {
           window.turnstile.remove(turnstileWidgetIdRef.current);
@@ -199,32 +430,43 @@ function App() {
           // Widget may already be removed by the browser.
         }
       }
+
       turnstileWidgetIdRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const draft = {};
+
     ['name', 'email', 'mobile', 'position', 'experience', 'location'].forEach((key) => {
-      if (form[key]) draft[key] = form[key];
+      if (form[key]) {
+        draft[key] = form[key];
+      }
     });
+
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {
       // Browser storage may be unavailable. Form still works.
     }
-  }, [form.name, form.email, form.mobile, form.position, form.experience, form.location]);
+  }, [form.email, form.experience, form.location, form.mobile, form.name, form.position]);
 
   function showError(message) {
     setAlert({ type: 'error', message });
+
     window.requestAnimationFrame(() => {
       alertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
 
   function updateField(field, value) {
-    const nextValue = field === 'mobile' ? value.replace(/\D/g, '').slice(0, 10) : value;
-    setForm((current) => ({ ...current, [field]: nextValue }));
+    const nextValue = sanitizeField(field, value);
+
+    setForm((current) => ({
+      ...current,
+      [field]: nextValue,
+    }));
+    setAlert(null);
 
     if (validation[field] !== undefined) {
       setValidation((current) => ({
@@ -234,25 +476,33 @@ function App() {
     }
   }
 
-  function validateField(field) {
-    const valid = validateValue(field, form[field]);
-    setValidation((current) => ({ ...current, [field]: valid }));
+  function validateField(field, overrideValue) {
+    const valid = validateValue(field, overrideValue ?? form[field]);
+    setValidation((current) => ({
+      ...current,
+      [field]: valid,
+    }));
     return valid;
   }
 
   function checkFile(file) {
     if (!file) {
-      return { ok: false, message: 'Please select your CV/Resume.' };
+      return { ok: false, message: 'Please select your CV or resume.' };
     }
 
     const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const mimeType = String(file.type || '').toLowerCase();
+    const mimeTypeAllowed =
+      !mimeType ||
+      mimeType === 'application/octet-stream' ||
+      ALLOWED_MIME_TYPES.has(mimeType);
 
     if (file.size > MAX_FILE_SIZE) {
-      return { ok: false, message: 'File too large. Maximum allowed size is 2MB.' };
+      return { ok: false, message: 'File is too large. Maximum allowed size is 2MB.' };
     }
 
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      return { ok: false, message: 'Invalid file type. Please upload PDF, DOC, or DOCX only.' };
+    if (!ALLOWED_EXTENSIONS.has(ext) || !mimeTypeAllowed) {
+      return { ok: false, message: 'Invalid file type. Upload PDF, DOC or DOCX only.' };
     }
 
     return { ok: true, message: '' };
@@ -266,22 +516,30 @@ function App() {
 
   function handleFile(file) {
     if (!file) return;
+
     const result = validateFile(file);
+
     if (result.ok) {
       setSelectedFile(file);
       setAlert(null);
-    } else {
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      showError(result.message);
+      return;
     }
+
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    showError(result.message);
   }
 
   function resetFileInput() {
     setSelectedFile(null);
     setFileError('');
     setDragging(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   }
 
   function preventDefaults(event) {
@@ -292,6 +550,7 @@ function App() {
   function resetTurnstile() {
     setTurnstileToken('');
     setTurnstileStatus('ready');
+
     if (window.turnstile && typeof window.turnstile.reset === 'function' && turnstileWidgetIdRef.current) {
       window.turnstile.reset(turnstileWidgetIdRef.current);
     }
@@ -301,6 +560,8 @@ function App() {
     const nameValid = validateField('name');
     const emailValid = validateField('email');
     const mobileValid = validateField('mobile');
+    const locationValid = validateField('location');
+    const positionValid = validateField('position');
 
     if (hpRef.current?.value) {
       return { ok: false, silent: true, message: 'Submission blocked.' };
@@ -310,25 +571,21 @@ function App() {
       return { ok: false, message: 'Please take a moment to review the form before submitting.' };
     }
 
-    if (!turnstileToken) {
-      return { ok: false, message: 'Please complete the verification box before submitting. If the verification box is not loading, add your GitHub Pages domain in Cloudflare Turnstile allowed domains.' };
-    }
-
-    if (!nameValid || !emailValid || !mobileValid) {
+    if (!nameValid || !emailValid || !mobileValid || !locationValid || !positionValid) {
       return { ok: false, message: 'Please fix the highlighted fields.' };
-    }
-
-    if (!form.position) {
-      return { ok: false, message: 'Please select the position you are applying for.', positionError: true };
     }
 
     const fileValidation = validateFile(selectedFile);
     if (!fileValidation.ok) {
-      return { ok: false, message: fileValidation.message || 'Please select a valid CV file.' };
+      return { ok: false, message: fileValidation.message };
     }
 
     if (!form.consent) {
       return { ok: false, message: 'Please confirm the recruitment consent before submitting.' };
+    }
+
+    if (!turnstileToken) {
+      return { ok: false, message: 'Complete the verification section before submitting the application.' };
     }
 
     return { ok: true };
@@ -337,11 +594,13 @@ function App() {
   async function handleSubmit(event) {
     event.preventDefault();
     setAlert(null);
+    setSubmitAttempted(true);
 
     const validationResult = validateFormBeforeSubmit();
     if (!validationResult.ok) {
-      if (validationResult.positionError) setValidation((current) => ({ ...current, position: false }));
-      if (!validationResult.silent) showError(validationResult.message);
+      if (!validationResult.silent) {
+        showError(validationResult.message);
+      }
       return;
     }
 
@@ -349,9 +608,8 @@ function App() {
       setIsSubmitting(true);
       setButtonText('Creating application...');
 
-      const positionTitle = positions.find(([code]) => code === form.position)?.[1] || '';
-
-      const initRes = await fetch(`${API_BASE}/v1/apply/init`, {
+      const positionTitle = POSITION_LABELS[form.position] || '';
+      const initRes = await fetchWithTimeout(`${API_BASE}/v1/apply/init`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -374,13 +632,14 @@ function App() {
       if (initRes.status === 429) {
         throw new Error('Too many attempts. Please try again in a few minutes.');
       }
+
       if (!initRes.ok) {
-        throw new Error('Network error while creating application. Please try again.');
+        throw new Error('Network error while creating the application. Please try again.');
       }
 
       const initData = await initRes.json();
-      if (!initData.success) {
-        throw new Error(initData.error || 'Failed to submit application.');
+      if (!initData.success || !initData.apply_id) {
+        throw new Error(initData.error || 'Failed to submit the application.');
       }
 
       const applyId = initData.apply_id;
@@ -392,7 +651,7 @@ function App() {
       uploadFormData.append('experience', form.experience);
       uploadFormData.append('location', form.location.trim());
 
-      const uploadRes = await fetch(`${API_BASE}/v1/apply/upload-cv`, {
+      const uploadRes = await fetchWithTimeout(`${API_BASE}/v1/apply/upload-cv`, {
         method: 'POST',
         headers: {
           'X-Request-ID': sessionTokenRef.current,
@@ -403,29 +662,74 @@ function App() {
       if (uploadRes.status === 429) {
         throw new Error('Too many upload attempts. Please try again later.');
       }
+
       if (!uploadRes.ok) {
-        throw new Error('Failed to upload CV. Please try again.');
+        throw new Error('Failed to upload the CV. Please try again.');
       }
 
       const uploadData = await uploadRes.json();
       if (!uploadData.success) {
-        throw new Error(uploadData.error || 'Failed to upload CV.');
+        throw new Error(uploadData.error || 'Failed to upload the CV.');
       }
 
       sessionStorage.removeItem(DRAFT_KEY);
-      setSuccessApplyId(applyId || '');
+      setSuccessApplyId(applyId);
       setSubmitted(true);
+      setIsSubmitting(false);
     } catch (error) {
       resetTurnstile();
-      showError(error.message || 'Something went wrong. Please try again.');
       setIsSubmitting(false);
       setButtonText('Submit Application');
+
+      if (error?.name === 'AbortError') {
+        showError('The request timed out. Please check your connection and try again.');
+        return;
+      }
+
+      showError(error?.message || 'Something went wrong. Please try again.');
     }
   }
 
-  const fileSizeKb = selectedFile ? (selectedFile.size < 1024 ? '< 1' : (selectedFile.size / 1024).toFixed(1)) : null;
-  const submitDisabled = isSubmitting;
-  const positionInvalid = validation.position === false && !form.position;
+  const nameError = getFieldError('name', validation.name);
+  const emailError = getFieldError('email', validation.email);
+  const mobileError = getFieldError('mobile', validation.mobile);
+  const locationError = getFieldError('location', validation.location);
+  const positionError = getFieldError('position', validation.position);
+  const fileSizeText = selectedFile ? formatFileSize(selectedFile.size) : '';
+  const submitDisabled = isSubmitting || turnstileStatus === 'loading';
+  const consentInvalid = submitAttempted && !form.consent;
+  const verificationInvalid = submitAttempted && !turnstileToken;
+  const detailsReady = validateValue('name', form.name) && validateValue('email', form.email);
+  const roleReady = validateValue('position', form.position) && Boolean(selectedFile) && !fileError;
+  const verificationReady = Boolean(form.consent) && Boolean(turnstileToken);
+
+  const checklistItems = [
+    ['Contact details', 'Name and email are required.', detailsReady],
+    ['Role and resume', 'Choose a role and upload a supported CV.', roleReady],
+    ['Consent and verify', 'Confirm consent and complete the secure check.', verificationReady],
+  ];
+
+  const verificationLabel =
+    turnstileStatus === 'verified'
+      ? 'Verified'
+      : turnstileStatus === 'error'
+        ? 'Needs attention'
+        : turnstileStatus === 'expired'
+          ? 'Expired'
+          : turnstileStatus === 'loading'
+            ? 'Loading'
+            : 'Pending';
+
+  const verificationMessage =
+    turnstileStatus === 'verified'
+      ? 'Verification completed. You can submit the application now.'
+      : turnstileStatus === 'error'
+        ? 'Verification is not loading. Check your Turnstile domain settings or refresh the page.'
+        : turnstileStatus === 'expired'
+          ? 'Verification expired. Please verify again before submitting.'
+          : turnstileStatus === 'loading'
+            ? 'Preparing the secure verification widget. This usually takes a moment.'
+            : 'Complete the secure verification before submitting your application.';
 
   return (
     <>
@@ -447,7 +751,10 @@ function App() {
             <a href="#faq">FAQ</a>
           </nav>
 
-          <a className="nav-cta" href="#application">Apply Now <span aria-hidden="true">→</span></a>
+          <a className="nav-cta" href="#application">
+            Apply Now
+            <Icon className="icon-inline" name="arrowRight" />
+          </a>
         </div>
       </header>
 
@@ -455,21 +762,38 @@ function App() {
         <section className="hero" aria-labelledby="hero-title">
           <div className="page-shell hero-grid">
             <div className="hero-copy">
-              <span className="eyebrow"><span className="eyebrow-dot" aria-hidden="true"></span> Hiring across business operations</span>
-              <h1 id="hero-title">Build your career with <span className="hero-gradient-text">NT Woods</span></h1>
+              <span className="eyebrow">
+                <span className="eyebrow-dot" aria-hidden="true"></span>
+                Hiring across business operations
+              </span>
+              <h1 id="hero-title">
+                Build your career with <span className="hero-gradient-text">NT Woods</span>
+              </h1>
               <p className="hero-lead">
                 Submit your profile for available roles in Accounts, HR, Sales, Marketing, Admin and IT support. Our HR team will review your application and connect with shortlisted candidates.
               </p>
 
               <div className="hero-actions">
-                <a className="btn-link-primary" href="#application">Start Application <span aria-hidden="true">→</span></a>
+                <a className="btn-link-primary" href="#application">
+                  Start Application
+                  <Icon className="icon-inline" name="arrowRight" />
+                </a>
                 <a className="btn-link-secondary" href="#process">View Process</a>
               </div>
 
               <div className="trust-strip" aria-label="Application highlights">
-                <div className="trust-item"><strong>Protected Form</strong><span>Turnstile verification and bot checks are enabled.</span></div>
-                <div className="trust-item"><strong>HR Review</strong><span>Applications are reviewed by the internal HR team.</span></div>
-                <div className="trust-item"><strong>Fast Apply</strong><span>Keep your CV ready and complete the form in minutes.</span></div>
+                <div className="trust-item">
+                  <strong>Protected Form</strong>
+                  <span>Turnstile verification and bot checks are enabled.</span>
+                </div>
+                <div className="trust-item">
+                  <strong>HR Review</strong>
+                  <span>Applications are reviewed by the internal HR team.</span>
+                </div>
+                <div className="trust-item">
+                  <strong>Fast Apply</strong>
+                  <span>Keep your CV ready and complete the form in minutes.</span>
+                </div>
               </div>
 
               <div className="info-panel" id="roles">
@@ -479,7 +803,10 @@ function App() {
                 </div>
                 <div className="role-grid">
                   {roleCards.map(([title, description]) => (
-                    <div className="role-card" key={title}><b>{title}</b><small>{description}</small></div>
+                    <div className="role-card" key={title}>
+                      <b>{title}</b>
+                      <small>{description}</small>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -489,7 +816,9 @@ function App() {
               <div className="application-card">
                 {alert && (
                   <div ref={alertRef} className={`alert ${alert.type === 'success' ? 'alert-success' : 'alert-error'}`} role="alert" aria-live="polite">
-                    <span className="alert-icon" aria-hidden="true">{alert.type === 'success' ? '✓' : '⚠️'}</span>
+                    <span className="alert-icon" aria-hidden="true">
+                      <Icon className="icon-inline" name={alert.type === 'success' ? 'checkCircle' : 'alert'} />
+                    </span>
                     <span>{alert.message}</span>
                   </div>
                 )}
@@ -498,18 +827,39 @@ function App() {
                   <div id="form-section">
                     <div className="form-header">
                       <div className="form-header-top">
-                        <div className="form-icon" aria-hidden="true">💼</div>
-                        <span className="form-tag">2-step protected submission</span>
+                        <div className="form-icon" aria-hidden="true">
+                          <Icon className="icon-lg" name="briefcase" />
+                        </div>
+                        <span className="form-tag">Protected 2-step application</span>
                       </div>
                       <h2>Submit your application</h2>
-                      <p className="subtitle">Fill in your basic details and upload your CV. Fields marked with <strong>*</strong> are required.</p>
+                      <p className="subtitle">Fill in your basic details, upload your CV, and complete verification before final submission.</p>
                       <div className="security-row" aria-label="Security notes">
-                        <span className="security-badge">🔒 Protected Application Submission</span>
-                        <span className="security-badge secondary">✓ Verification Enabled</span>
+                        <span className="security-badge">
+                          <Icon className="icon-inline" name="lock" />
+                          Protected application submission
+                        </span>
+                        <span className="security-badge secondary">
+                          <Icon className="icon-inline" name="shield" />
+                          Verification enabled
+                        </span>
+                      </div>
+                      <div className="progress-grid" aria-label="Application readiness">
+                        {checklistItems.map(([title, note, ready]) => (
+                          <div className={`progress-card ${ready ? 'complete' : ''}`} key={title}>
+                            <span className="progress-icon" aria-hidden="true">
+                              <Icon className="icon-inline" name={ready ? 'checkCircle' : 'briefcase'} />
+                            </span>
+                            <div>
+                              <strong>{title}</strong>
+                              <span>{note}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
-                    <form id="apply-form" noValidate onSubmit={handleSubmit}>
+                    <form id="apply-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
                       <div className="hp-field" aria-hidden="true">
                         <label htmlFor="_hp_check">Leave this empty</label>
                         <input ref={hpRef} type="text" id="_hp_check" name="_hp_check" tabIndex="-1" autoComplete="off" />
@@ -520,7 +870,10 @@ function App() {
                       <div className="form-section-title">Personal details</div>
 
                       <div className="form-group">
-                        <label className="required" htmlFor="name"><span className="label-icon" aria-hidden="true">👤</span>Full Name</label>
+                        <label className="required" htmlFor="name">
+                          <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="user" /></span>
+                          Full Name
+                        </label>
                         <div className="input-wrapper">
                           <input
                             className={fieldClass(validation.name, form.name)}
@@ -531,17 +884,23 @@ function App() {
                             maxLength="100"
                             autoComplete="name"
                             value={form.name}
-                            onChange={(e) => updateField('name', e.target.value)}
+                            aria-invalid={validation.name === false}
+                            aria-describedby={nameError ? 'name-error' : undefined}
+                            onChange={(event) => updateField('name', event.target.value)}
                             onBlur={() => validateField('name')}
                           />
                           <span className={`input-icon ${fieldIcon(validation.name, form.name) ? 'show' : ''} ${validation.name ? 'valid' : validation.name === false ? 'invalid' : ''}`} aria-hidden="true">
-                            {fieldIcon(validation.name, form.name)}
+                            <Icon className="icon-inline" name={fieldIcon(validation.name, form.name)} />
                           </span>
                         </div>
+                        {nameError ? <div className="field-error-note" id="name-error">{nameError}</div> : null}
                       </div>
 
                       <div className="form-group">
-                        <label className="required" htmlFor="email"><span className="label-icon" aria-hidden="true">✉️</span>Email Address</label>
+                        <label className="required" htmlFor="email">
+                          <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="mail" /></span>
+                          Email Address
+                        </label>
                         <div className="input-wrapper">
                           <input
                             className={fieldClass(validation.email, form.email)}
@@ -552,18 +911,25 @@ function App() {
                             maxLength="100"
                             autoComplete="email"
                             value={form.email}
-                            onChange={(e) => updateField('email', e.target.value)}
+                            aria-invalid={validation.email === false}
+                            aria-describedby={emailError ? 'email-error' : undefined}
+                            onChange={(event) => updateField('email', event.target.value)}
                             onBlur={() => validateField('email')}
                           />
                           <span className={`input-icon ${fieldIcon(validation.email, form.email) ? 'show' : ''} ${validation.email ? 'valid' : validation.email === false ? 'invalid' : ''}`} aria-hidden="true">
-                            {fieldIcon(validation.email, form.email)}
+                            <Icon className="icon-inline" name={fieldIcon(validation.email, form.email)} />
                           </span>
                         </div>
+                        {emailError ? <div className="field-error-note" id="email-error">{emailError}</div> : null}
                       </div>
 
                       <div className="form-row">
                         <div className="form-group">
-                          <label htmlFor="mobile"><span className="label-icon" aria-hidden="true">📱</span>Mobile Number <span className="field-hint">(Optional)</span></label>
+                          <label htmlFor="mobile">
+                            <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="phone" /></span>
+                            Mobile Number
+                            <span className="field-hint-inline">(Optional)</span>
+                          </label>
                           <div className="input-wrapper">
                             <input
                               className={fieldClass(validation.mobile, form.mobile)}
@@ -575,26 +941,37 @@ function App() {
                               inputMode="numeric"
                               autoComplete="tel"
                               value={form.mobile}
-                              onChange={(e) => updateField('mobile', e.target.value)}
+                              aria-invalid={validation.mobile === false}
+                              aria-describedby={mobileError ? 'mobile-error' : undefined}
+                              onChange={(event) => updateField('mobile', event.target.value)}
                               onBlur={() => validateField('mobile')}
                             />
                             <span className={`input-icon ${fieldIcon(validation.mobile, form.mobile) ? 'show' : ''} ${validation.mobile ? 'valid' : validation.mobile === false ? 'invalid' : ''}`} aria-hidden="true">
-                              {fieldIcon(validation.mobile, form.mobile)}
+                              <Icon className="icon-inline" name={fieldIcon(validation.mobile, form.mobile)} />
                             </span>
                           </div>
+                          {mobileError ? <div className="field-error-note" id="mobile-error">{mobileError}</div> : null}
                         </div>
 
                         <div className="form-group">
-                          <label htmlFor="location"><span className="label-icon" aria-hidden="true">📍</span>Current Location</label>
+                          <label htmlFor="location">
+                            <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="pin" /></span>
+                            Current Location
+                          </label>
                           <input
+                            className={fieldClass(validation.location, form.location)}
                             type="text"
                             id="location"
                             placeholder="City, State"
                             maxLength="100"
                             autoComplete="address-level2"
                             value={form.location}
-                            onChange={(e) => updateField('location', e.target.value)}
+                            aria-invalid={validation.location === false}
+                            aria-describedby={locationError ? 'location-error' : undefined}
+                            onChange={(event) => updateField('location', event.target.value)}
+                            onBlur={() => validateField('location')}
                           />
+                          {locationError ? <div className="field-error-note" id="location-error">{locationError}</div> : null}
                         </div>
                       </div>
 
@@ -602,26 +979,43 @@ function App() {
 
                       <div className="form-row">
                         <div className="form-group">
-                          <label className="required" htmlFor="position"><span className="label-icon" aria-hidden="true">💼</span>Position Applying For</label>
+                          <label className="required" htmlFor="position">
+                            <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="briefcase" /></span>
+                            Position Applying For
+                          </label>
                           <select
-                            className={positionInvalid ? 'invalid' : ''}
+                            className={validation.position === false ? 'invalid' : ''}
                             id="position"
                             autoComplete="organization-title"
                             required
                             value={form.position}
-                            onChange={(e) => {
-                              updateField('position', e.target.value);
-                              setValidation((current) => ({ ...current, position: undefined }));
+                            aria-invalid={validation.position === false}
+                            aria-describedby={positionError ? 'position-error' : undefined}
+                            onBlur={() => validateField('position')}
+                            onChange={(event) => {
+                              updateField('position', event.target.value);
+                              setValidation((current) => ({
+                                ...current,
+                                position: validateValue('position', event.target.value),
+                              }));
                             }}
                           >
-                            {positions.map(([value, label]) => <option key={value || 'empty'} value={value}>{label}</option>)}
+                            {positions.map(([value, label]) => (
+                              <option key={value || 'empty'} value={value}>{label}</option>
+                            ))}
                           </select>
+                          {positionError ? <div className="field-error-note" id="position-error">{positionError}</div> : null}
                         </div>
 
                         <div className="form-group">
-                          <label htmlFor="experience"><span className="label-icon" aria-hidden="true">⏱️</span>Experience</label>
-                          <select id="experience" value={form.experience} onChange={(e) => updateField('experience', e.target.value)}>
-                            {experienceOptions.map(([value, label]) => <option key={value || 'empty'} value={value}>{label}</option>)}
+                          <label htmlFor="experience">
+                            <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="clock" /></span>
+                            Experience
+                          </label>
+                          <select id="experience" value={form.experience} onChange={(event) => updateField('experience', event.target.value)}>
+                            {experienceOptions.map(([value, label]) => (
+                              <option key={value || 'empty'} value={value}>{label}</option>
+                            ))}
                           </select>
                         </div>
                       </div>
@@ -629,17 +1023,31 @@ function App() {
                       <div className="form-section-title">Resume upload</div>
 
                       <div className="form-group file-input">
-                        <label className="required" htmlFor="cv"><span className="label-icon" aria-hidden="true">📄</span>Resume / CV</label>
+                        <label className="required" htmlFor="cv">
+                          <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="file" /></span>
+                          Resume / CV
+                        </label>
                         <div
                           className={`file-dropzone ${dragging ? 'dragging' : ''}`}
-                          onDragEnter={(e) => { preventDefaults(e); setDragging(true); }}
-                          onDragOver={(e) => { preventDefaults(e); setDragging(true); }}
-                          onDragLeave={(e) => { preventDefaults(e); setDragging(false); }}
-                          onDrop={(e) => {
-                            preventDefaults(e);
+                          onDragEnter={(event) => {
+                            preventDefaults(event);
+                            setDragging(true);
+                          }}
+                          onDragOver={(event) => {
+                            preventDefaults(event);
+                            setDragging(true);
+                          }}
+                          onDragLeave={(event) => {
+                            preventDefaults(event);
                             setDragging(false);
-                            const file = e.dataTransfer.files?.[0];
-                            if (file) handleFile(file);
+                          }}
+                          onDrop={(event) => {
+                            preventDefaults(event);
+                            setDragging(false);
+                            const file = event.dataTransfer.files?.[0];
+                            if (file) {
+                              handleFile(file);
+                            }
                           }}
                         >
                           <input
@@ -649,32 +1057,41 @@ function App() {
                             accept=".pdf,.doc,.docx"
                             required
                             aria-describedby="file-help"
-                            onChange={(e) => handleFile(e.target.files?.[0])}
+                            onChange={(event) => handleFile(event.target.files?.[0])}
                           />
                           <div
                             className={`file-label ${selectedFile ? 'has-file' : ''} ${dragging ? 'dragging' : ''}`}
                             role="button"
                             tabIndex="0"
                             onClick={() => fileInputRef.current?.click()}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
                                 fileInputRef.current?.click();
                               }
                             }}
                           >
-                            <div className="file-icon" aria-hidden="true">📄</div>
+                            <div className="file-icon" aria-hidden="true">
+                              <Icon className="icon-lg" name="file" />
+                            </div>
                             <div className="file-text">
-                              <div className="main" id="file-name">{selectedFile ? selectedFile.name : 'Choose your CV or drag & drop'}</div>
+                              <div className="main" id="file-name">{selectedFile ? selectedFile.name : 'Choose your CV or drag and drop it here'}</div>
                               <div className="sub" id="file-help">
-                                {selectedFile ? <><span className="file-size">{fileSizeKb} KB</span> · Ready to upload</> : 'PDF, DOC, DOCX accepted · maximum 2MB'}
+                                {selectedFile ? (
+                                  <>
+                                    <span className="file-size">{fileSizeText}</span>
+                                    <span className="file-meta-separator">Ready to upload</span>
+                                  </>
+                                ) : (
+                                  'PDF, DOC, DOCX accepted | maximum 2MB'
+                                )}
                               </div>
                             </div>
                             <button
                               type="button"
                               className={`remove-file ${selectedFile ? '' : 'hidden'}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={(event) => {
+                                event.stopPropagation();
                                 resetFileInput();
                               }}
                             >
@@ -685,54 +1102,62 @@ function App() {
                         {fileError ? <div className="field-error-note">{fileError}</div> : null}
                       </div>
 
-                      <div className="consent-card">
+                      <div className={`consent-card ${consentInvalid ? 'invalid' : ''}`}>
                         <input
                           type="checkbox"
                           id="consent"
                           required
                           checked={form.consent}
-                          onChange={(e) => {
-                            setForm((current) => ({ ...current, consent: e.target.checked }));
+                          aria-invalid={consentInvalid}
+                          onChange={(event) => {
+                            setForm((current) => ({
+                              ...current,
+                              consent: event.target.checked,
+                            }));
                             setAlert(null);
                           }}
                         />
-                        <label htmlFor="consent">I confirm that the information provided is correct and may be used by NT Woods for recruitment communication and application review.</label>
+                        <label htmlFor="consent">
+                          I confirm that the information provided is correct and may be used by NT Woods for recruitment communication and application review.
+                        </label>
                       </div>
 
-                      <div className="turnstile-container" aria-label="Verification">
-                        <div ref={turnstileRef} className="turnstile-widget" />
-                        <p className={`verification-note verification-${turnstileStatus}`}>
-                          {turnstileStatus === 'verified'
-                            ? 'Verification completed. You can submit the application now.'
-                            : turnstileStatus === 'error'
-                              ? 'Verification is not loading. Please check Turnstile domain settings or refresh the page.'
-                              : turnstileStatus === 'expired'
-                                ? 'Verification expired. Please verify again before submitting.'
-                                : 'Complete verification before submitting. The submit button will show a clear message if verification is pending.'}
-                        </p>
+                      <div className={`turnstile-container ${verificationInvalid ? 'invalid' : ''}`} aria-label="Verification">
+                        <div className="verification-header">
+                          <div>
+                            <strong>Security verification</strong>
+                            <span>Complete this secure check to activate final submission.</span>
+                          </div>
+                          <span className={`verification-chip verification-chip-${turnstileStatus}`}>{verificationLabel}</span>
+                        </div>
+                        <div ref={turnstileRef} className={`turnstile-widget turnstile-widget-${turnstileStatus}`} />
+                        <p className={`verification-note verification-${turnstileStatus}`}>{verificationMessage}</p>
                       </div>
 
                       <button type="submit" className="btn btn-primary" id="btn-submit" disabled={submitDisabled}>
                         <span id="btn-text">{buttonText}</span>
-                        {!isSubmitting && <span className="btn-icon" aria-hidden="true">→</span>}
-                        {isSubmitting && <span className="spinner" aria-hidden="true" />}
+                        {!isSubmitting ? <Icon className="btn-icon" name="arrowRight" /> : <span className="spinner" aria-hidden="true" />}
                       </button>
 
-                      <p className="form-footnote">Your CV and contact details should only be submitted once for the same role. Verification must be completed before submission.</p>
+                      <p className="form-footnote">Submit your CV and contact details only once for the same role. Verification must be completed before submission.</p>
                     </form>
                   </div>
                 ) : (
                   <div id="success" className="success-screen" aria-live="polite">
-                    <div className="success-icon" aria-hidden="true">✓</div>
+                    <div className="success-icon" aria-hidden="true">
+                      <Icon className="icon-xl" name="check" />
+                    </div>
                     <div className="success-message">
                       <h2>Application submitted successfully</h2>
-                      <p>Thank you for applying. Our HR team will review your application and connect with you if your profile matches the requirement.</p>
+                      <p>Thank you for applying. Our HR team will review your application and contact you if your profile matches the current requirement.</p>
                       {successApplyId ? <div className="application-id-box">Application ID: <span>{successApplyId}</span></div> : null}
                       <div className="success-details">
                         <p><strong>What happens next?</strong></p>
-                        <p>• Your application will be reviewed by the HR team.</p>
-                        <p>• Shortlisted candidates will be contacted for the next stage.</p>
-                        <p>• Please keep your phone and email available for updates.</p>
+                        <ul className="success-list">
+                          <li>Your application will be reviewed by the HR team.</li>
+                          <li>Shortlisted candidates will be contacted for the next stage.</li>
+                          <li>Please keep your phone and email available for updates.</li>
+                        </ul>
                       </div>
                     </div>
                   </div>
@@ -782,7 +1207,7 @@ function App() {
           <div className="page-shell">
             <div className="section-header">
               <h2 id="faq-title">Quick FAQ</h2>
-              <p>Keep your CV updated and ensure your email/mobile number is correct before submitting the form.</p>
+              <p>Keep your CV updated and ensure your email and mobile number are correct before submitting the form.</p>
             </div>
             <div className="faq-panel">
               {faqItems.map(([question, answer]) => (
@@ -798,7 +1223,7 @@ function App() {
 
       <footer className="site-footer">
         <div className="footer-shell">
-          <div><strong>NT Woods Careers</strong> · Recruitment application portal</div>
+          <div><strong>NT Woods Careers</strong> | Recruitment application portal</div>
           <p>Candidate information is used only for hiring and recruitment review purposes.</p>
         </div>
       </footer>
