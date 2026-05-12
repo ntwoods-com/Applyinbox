@@ -1297,3 +1297,30 @@ button[disabled] { cursor: not-allowed; }
   font-size: 12px;
   font-weight: 700;
 }
+
+/* Verification helper added for Turnstile troubleshooting */
+.verification-note {
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.verification-verified {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.verification-error,
+.verification-expired {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fecaca;
+}

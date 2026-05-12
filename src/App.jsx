@@ -123,6 +123,7 @@ function App() {
   const [validation, setValidation] = useState({});
   const [alert, setAlert] = useState(null);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileStatus, setTurnstileStatus] = useState('loading');
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -132,6 +133,8 @@ function App() {
   const [submitted, setSubmitted] = useState(false);
 
   const fileInputRef = useRef(null);
+  const turnstileRef = useRef(null);
+  const turnstileWidgetIdRef = useRef(null);
   const alertRef = useRef(null);
   const hpRef = useRef(null);
   const sessionTokenRef = useRef(generateToken());
@@ -139,23 +142,64 @@ function App() {
   const sourceText = useMemo(getSourceText, []);
 
   useEffect(() => {
-    window.onTurnstileSuccess = (token) => {
-      setTurnstileToken(token || '');
-      setAlert(null);
-    };
-    window.onTurnstileExpired = () => {
-      setTurnstileToken('');
-      showError('Verification expired. Please complete verification again.');
-    };
-    window.onTurnstileError = () => {
-      setTurnstileToken('');
-      showError('Verification error. Please refresh the page and try again.');
+    let cancelled = false;
+    let checks = 0;
+
+    const renderTurnstile = () => {
+      if (cancelled || !turnstileRef.current || !window.turnstile || turnstileWidgetIdRef.current) return;
+
+      try {
+        turnstileWidgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          size: 'normal',
+          theme: 'light',
+          callback: (token) => {
+            setTurnstileToken(token || '');
+            setTurnstileStatus(token ? 'verified' : 'ready');
+            setAlert(null);
+          },
+          'expired-callback': () => {
+            setTurnstileToken('');
+            setTurnstileStatus('expired');
+            showError('Verification expired. Please complete verification again.');
+          },
+          'error-callback': () => {
+            setTurnstileToken('');
+            setTurnstileStatus('error');
+            showError('Verification could not be completed. Please check that this domain is allowed in Cloudflare Turnstile and try again.');
+          },
+        });
+        setTurnstileStatus('ready');
+      } catch {
+        setTurnstileStatus('error');
+      }
     };
 
+    renderTurnstile();
+
+    const turnstileWatch = window.setInterval(() => {
+      checks += 1;
+      renderTurnstile();
+
+      if (turnstileWidgetIdRef.current) {
+        window.clearInterval(turnstileWatch);
+      } else if (checks >= 30) {
+        setTurnstileStatus('error');
+        window.clearInterval(turnstileWatch);
+      }
+    }, 500);
+
     return () => {
-      delete window.onTurnstileSuccess;
-      delete window.onTurnstileExpired;
-      delete window.onTurnstileError;
+      cancelled = true;
+      window.clearInterval(turnstileWatch);
+      if (window.turnstile && turnstileWidgetIdRef.current) {
+        try {
+          window.turnstile.remove(turnstileWidgetIdRef.current);
+        } catch {
+          // Widget may already be removed by the browser.
+        }
+      }
+      turnstileWidgetIdRef.current = null;
     };
   }, []);
 
@@ -247,8 +291,9 @@ function App() {
 
   function resetTurnstile() {
     setTurnstileToken('');
-    if (window.turnstile && typeof window.turnstile.reset === 'function') {
-      window.turnstile.reset();
+    setTurnstileStatus('ready');
+    if (window.turnstile && typeof window.turnstile.reset === 'function' && turnstileWidgetIdRef.current) {
+      window.turnstile.reset(turnstileWidgetIdRef.current);
     }
   }
 
@@ -266,7 +311,7 @@ function App() {
     }
 
     if (!turnstileToken) {
-      return { ok: false, message: 'Please complete verification first.' };
+      return { ok: false, message: 'Please complete the verification box before submitting. If the verification box is not loading, add your GitHub Pages domain in Cloudflare Turnstile allowed domains.' };
     }
 
     if (!nameValid || !emailValid || !mobileValid) {
@@ -379,7 +424,7 @@ function App() {
   }
 
   const fileSizeKb = selectedFile ? (selectedFile.size < 1024 ? '< 1' : (selectedFile.size / 1024).toFixed(1)) : null;
-  const submitDisabled = isSubmitting || !turnstileToken;
+  const submitDisabled = isSubmitting;
   const positionInvalid = validation.position === false && !form.position;
 
   return (
@@ -655,15 +700,16 @@ function App() {
                       </div>
 
                       <div className="turnstile-container" aria-label="Verification">
-                        <div
-                          className="cf-turnstile"
-                          data-sitekey={TURNSTILE_SITE_KEY}
-                          data-size="normal"
-                          data-theme="light"
-                          data-callback="onTurnstileSuccess"
-                          data-expired-callback="onTurnstileExpired"
-                          data-error-callback="onTurnstileError"
-                        />
+                        <div ref={turnstileRef} className="turnstile-widget" />
+                        <p className={`verification-note verification-${turnstileStatus}`}>
+                          {turnstileStatus === 'verified'
+                            ? 'Verification completed. You can submit the application now.'
+                            : turnstileStatus === 'error'
+                              ? 'Verification is not loading. Please check Turnstile domain settings or refresh the page.'
+                              : turnstileStatus === 'expired'
+                                ? 'Verification expired. Please verify again before submitting.'
+                                : 'Complete verification before submitting. The submit button will show a clear message if verification is pending.'}
+                        </p>
                       </div>
 
                       <button type="submit" className="btn btn-primary" id="btn-submit" disabled={submitDisabled}>
