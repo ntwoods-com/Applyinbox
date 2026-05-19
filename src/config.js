@@ -1,4 +1,15 @@
-const DEFAULT_API_BASE = 'https://ntwoods.onrender.com/api';
+function getDefaultApiBase() {
+  if (typeof window !== 'undefined') {
+    const localHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
+    if (localHosts.has(window.location.hostname)) {
+      return '/api';
+    }
+  }
+
+  return 'https://ntwoods.onrender.com/api';
+}
+
+const DEFAULT_API_BASE = getDefaultApiBase();
 const DEFAULT_TURNSTILE_SITE_KEY = '0x4AAAAAACVpKor7RIjOUDfl';
 
 function getRuntimeConfig() {

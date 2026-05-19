@@ -47,7 +47,7 @@ const faqItems = [
   ['Why is verification required?', 'Verification helps protect the form from automated or fake submissions.'],
 ];
 
-const positions = [
+const fallbackPositions = [
   ['', 'Select a position'],
   ['ACC-001', 'Accountant'],
   ['HR-001', 'HR Executive'],
@@ -68,8 +68,12 @@ const experienceOptions = [
   ['5', '5+ Years'],
 ];
 
-const POSITION_LABELS = Object.fromEntries(positions.filter(([value]) => value));
-const VALID_POSITIONS = new Set(positions.map(([value]) => value).filter(Boolean));
+const fallbackPositionOptions = fallbackPositions.map(([value, label]) => ({
+  value,
+  label,
+  requirementId: '',
+  dynamic: false,
+}));
 const VALID_EXPERIENCE = new Set(experienceOptions.map(([value]) => value).filter(Boolean));
 
 function Icon({ name, className = '', title }) {
@@ -216,15 +220,37 @@ function getDraft() {
   }
 }
 
-function sanitizeSource(value) {
-  return String(value || '')
-    .replace(/[^a-zA-Z0-9 _.-]/g, '')
-    .slice(0, 40);
+function normalizeSourceValue(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 50);
+  return normalized;
+}
+
+function formatSourceLabel(value) {
+  const normalized = normalizeSourceValue(value);
+  if (!normalized || normalized === 'website' || normalized === 'public_apply') {
+    return 'Website / Direct';
+  }
+  return normalized
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function getSourceText() {
   const params = new URLSearchParams(window.location.search);
-  return sanitizeSource(params.get('source') || params.get('utm_source') || params.get('ref'));
+  const raw = params.get('source') || params.get('utm_source') || params.get('ref') || '';
+  if (!String(raw || '').trim()) return '';
+  return normalizeSourceValue(raw) || 'website';
+}
+
+function isValidWhatsappNumber(value) {
+  return /^[1-9][0-9]{9,14}$/.test(String(value || '').trim());
 }
 
 function normalizeSpaces(value) {
@@ -276,7 +302,7 @@ function validateValue(field, rawValue) {
   }
 
   if (field === 'position') {
-    return VALID_POSITIONS.has(value);
+    return Boolean(value);
   }
 
   if (field === 'experience') {
@@ -348,6 +374,8 @@ function App() {
   const [form, setForm] = useState(getDraft);
   const [validation, setValidation] = useState({});
   const [alert, setAlert] = useState(null);
+  const [dynamicJobs, setDynamicJobs] = useState([]);
+  const [publicConfig, setPublicConfig] = useState({ whatsapp_enabled: false, whatsapp_number: '' });
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileStatus, setTurnstileStatus] = useState('loading');
   const [selectedFile, setSelectedFile] = useState(null);
@@ -358,6 +386,17 @@ function App() {
   const [successApplyId, setSuccessApplyId] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState('');
+  const [submittedContext, setSubmittedContext] = useState({
+    name: '',
+    mobile: '',
+    positionTitle: '',
+    sourceDisplay: '',
+  });
+  const [statusForm, setStatusForm] = useState({ applyId: '', email: '' });
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState('');
+  const [statusResult, setStatusResult] = useState(null);
 
   const fileInputRef = useRef(null);
   const turnstileRef = useRef(null);
@@ -368,6 +407,37 @@ function App() {
   const sessionTokenRef = useRef(generateToken());
   const formLoadTimeRef = useRef(Date.now());
   const sourceText = sourceTextRef.current;
+  const sourceDisplayText = formatSourceLabel(sourceText);
+  const usingDynamicJobs = dynamicJobs.length > 0;
+  const positionOptions = usingDynamicJobs
+    ? [{ value: '', label: 'Select a position', requirementId: '', dynamic: false }, ...dynamicJobs]
+    : fallbackPositionOptions;
+  const availableRoleCount = positionOptions.filter((option) => option.value).length;
+  const totalDynamicOpenings = usingDynamicJobs
+    ? dynamicJobs.reduce((sum, option) => sum + Math.max(0, Number(option.openingCount || 0)), 0)
+    : 0;
+  const heroStats = [
+    {
+      value: String(usingDynamicJobs ? availableRoleCount : Math.max(availableRoleCount - 1, 1)).padStart(2, '0'),
+      label: usingDynamicJobs ? 'Live approved roles' : 'Role tracks open',
+      note: usingDynamicJobs ? 'Synced from active HR-approved requirements.' : 'Fallback role list remains available for direct applications.',
+    },
+    {
+      value: totalDynamicOpenings > 0 ? String(totalDynamicOpenings).padStart(2, '0') : '2-Step',
+      label: totalDynamicOpenings > 0 ? 'Openings listed' : 'Protected apply flow',
+      note: totalDynamicOpenings > 0 ? 'Open counts are shown only when safely available.' : 'Details are submitted first, then the CV is securely uploaded.',
+    },
+    {
+      value: sourceText ? sourceDisplayText : 'Direct',
+      label: 'Application source',
+      note: sourceText ? 'Your visit source was captured from the page URL.' : 'No campaign tag detected. This will be treated as a direct website application.',
+    },
+  ];
+  const formHighlights = [
+    ['Role feed', usingDynamicJobs ? 'Live approved job list' : 'Curated fallback roles'],
+    ['Review path', 'Manual HR screening'],
+    ['Source', sourceText ? sourceDisplayText : 'Website / Direct'],
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -436,6 +506,58 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadPublicApplyData() {
+      try {
+        const jobsRes = await fetchWithTimeout(`${API_BASE}/v1/apply/jobs`, { method: 'GET' }, 15000);
+        if (jobsRes.ok) {
+          const jobsData = await jobsRes.json();
+          const items = Array.isArray(jobsData?.items) ? jobsData.items : [];
+          const nextJobs = items
+            .map((item) => ({
+              value: String(item?.job_public_code || '').trim(),
+              label: String(item?.position_title || '').trim(),
+              requirementId: String(item?.requirement_id || '').trim(),
+              openingCount: Number(item?.opening_count || 0),
+              dynamic: true,
+            }))
+            .filter((item) => item.value && item.label);
+          if (!cancelled && nextJobs.length > 0) {
+            setDynamicJobs(nextJobs);
+          }
+        }
+      } catch {
+        // Keep TODO fallback jobs active until all public roles are backend-driven.
+      }
+
+      try {
+        const configRes = await fetchWithTimeout(`${API_BASE}/v1/apply/config`, { method: 'GET' }, 15000);
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          const whatsappNumber = String(configData?.whatsapp_number || '').trim();
+          const whatsappEnabled = Boolean(configData?.whatsapp_enabled) && isValidWhatsappNumber(whatsappNumber);
+          if (!cancelled) {
+            setPublicConfig({
+              whatsapp_enabled: whatsappEnabled,
+              whatsapp_number: whatsappEnabled ? whatsappNumber : '',
+            });
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setPublicConfig({ whatsapp_enabled: false, whatsapp_number: '' });
+        }
+      }
+    }
+
+    loadPublicApplyData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     const draft = {};
 
     ['name', 'email', 'mobile', 'position', 'experience', 'location'].forEach((key) => {
@@ -450,6 +572,20 @@ function App() {
       // Browser storage may be unavailable. Form still works.
     }
   }, [form.email, form.experience, form.location, form.mobile, form.name, form.position]);
+
+  useEffect(() => {
+    if (!copyFeedback) return undefined;
+    const timeoutId = window.setTimeout(() => setCopyFeedback(''), 2500);
+    return () => window.clearTimeout(timeoutId);
+  }, [copyFeedback]);
+
+  useEffect(() => {
+    if (!form.position) return;
+    const activeOptions = dynamicJobs.length ? dynamicJobs : fallbackPositionOptions;
+    if (activeOptions.some((option) => option.value && option.value === form.position)) return;
+    setForm((current) => ({ ...current, position: '' }));
+    setValidation((current) => ({ ...current, position: undefined }));
+  }, [dynamicJobs, form.position]);
 
   function showError(message) {
     setAlert({ type: 'error', message });
@@ -477,7 +613,10 @@ function App() {
   }
 
   function validateField(field, overrideValue) {
-    const valid = validateValue(field, overrideValue ?? form[field]);
+    const nextValue = overrideValue ?? form[field];
+    const valid = field === 'position'
+      ? positionOptions.some((option) => option.value && option.value === String(nextValue || ''))
+      : validateValue(field, nextValue);
     setValidation((current) => ({
       ...current,
       [field]: valid,
@@ -595,6 +734,7 @@ function App() {
     event.preventDefault();
     setAlert(null);
     setSubmitAttempted(true);
+    let initCompleted = false;
 
     const validationResult = validateFormBeforeSubmit();
     if (!validationResult.ok) {
@@ -608,7 +748,26 @@ function App() {
       setIsSubmitting(true);
       setButtonText('Creating application...');
 
-      const positionTitle = POSITION_LABELS[form.position] || '';
+      const selectedPosition = positionOptions.find((option) => option.value === form.position) || null;
+      const positionTitle = selectedPosition?.label || '';
+      const initPayload = {
+        turnstile_token: turnstileToken,
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        mobile: form.mobile.trim(),
+        job_public_code: form.position,
+        position_title: positionTitle,
+        _hp_check: hpRef.current?.value || '',
+        _timestamp: formLoadTimeRef.current,
+        _token: sessionTokenRef.current,
+      };
+      if (sourceText) {
+        initPayload.source = sourceText;
+      }
+      if (selectedPosition?.dynamic && selectedPosition.requirementId) {
+        initPayload.requirement_id = selectedPosition.requirementId;
+      }
+
       const initRes = await fetchWithTimeout(`${API_BASE}/v1/apply/init`, {
         method: 'POST',
         headers: {
@@ -616,17 +775,7 @@ function App() {
           'X-Request-ID': sessionTokenRef.current,
           'X-Timestamp': String(formLoadTimeRef.current),
         },
-        body: JSON.stringify({
-          turnstile_token: turnstileToken,
-          name: form.name.trim(),
-          email: form.email.trim().toLowerCase(),
-          mobile: form.mobile.trim(),
-          job_public_code: form.position,
-          position_title: positionTitle,
-          _hp_check: hpRef.current?.value || '',
-          _timestamp: formLoadTimeRef.current,
-          _token: sessionTokenRef.current,
-        }),
+        body: JSON.stringify(initPayload),
       });
 
       if (initRes.status === 429) {
@@ -642,6 +791,7 @@ function App() {
         throw new Error(initData.error || 'Failed to submit the application.');
       }
 
+      initCompleted = true;
       const applyId = initData.apply_id;
       setButtonText('Uploading CV...');
 
@@ -674,19 +824,106 @@ function App() {
 
       sessionStorage.removeItem(DRAFT_KEY);
       setSuccessApplyId(applyId);
+      setSubmittedContext({
+        name: form.name.trim(),
+        mobile: form.mobile.trim(),
+        positionTitle: positionTitle || form.position,
+        sourceDisplay: sourceText ? sourceDisplayText : '',
+      });
       setSubmitted(true);
       setIsSubmitting(false);
     } catch (error) {
-      resetTurnstile();
       setIsSubmitting(false);
       setButtonText('Submit Application');
 
       if (error?.name === 'AbortError') {
+        if (initCompleted) {
+          resetTurnstile();
+        }
         showError('The request timed out. Please check your connection and try again.');
         return;
       }
 
+      if (error instanceof TypeError) {
+        if (initCompleted) {
+          resetTurnstile();
+        }
+        showError('Could not reach the application API. If you are testing locally, run the app through Vite so the /api proxy is active. If this is deployed, enable CORS for this site on the backend.');
+        return;
+      }
+
+      resetTurnstile();
       showError(error?.message || 'Something went wrong. Please try again.');
+    }
+  }
+
+  async function handleCopyApplyId() {
+    if (!successApplyId) return;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('clipboard_unavailable');
+      }
+      await navigator.clipboard.writeText(successApplyId);
+      setCopyFeedback('Application ID copied');
+    } catch {
+      setCopyFeedback('Please copy the Application ID manually');
+    }
+  }
+
+  function updateStatusField(field, value) {
+    setStatusForm((current) => ({
+      ...current,
+      [field]: field === 'email' ? String(value || '').trim() : String(value || '').trim(),
+    }));
+    setStatusError('');
+    setStatusResult(null);
+  }
+
+  async function handleStatusCheck(event) {
+    event.preventDefault();
+    setStatusError('');
+    setStatusResult(null);
+
+    const applyId = String(statusForm.applyId || '').trim();
+    const email = String(statusForm.email || '').trim().toLowerCase();
+    if (!applyId || !validateValue('email', email)) {
+      setStatusError('Please enter the Application ID and the same email used for the application.');
+      return;
+    }
+
+    try {
+      setStatusLoading(true);
+      const response = await fetchWithTimeout(`${API_BASE}/v1/apply/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apply_id: applyId,
+          email,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (response.status === 429) {
+        throw new Error(payload?.error || 'Please wait before checking the application status again.');
+      }
+      if (!response.ok || !payload?.success) {
+        setStatusError('We could not verify those application details. Please check the Application ID and email.');
+        return;
+      }
+
+      setStatusResult({
+        applyId: payload.apply_id,
+        statusLabel: payload.status_label,
+        positionTitle: payload.position_title,
+        appliedAt: payload.applied_at,
+        source: payload.source,
+      });
+    } catch (error) {
+      setStatusError(error?.message || 'Unable to check application status right now.');
+    } finally {
+      setStatusLoading(false);
     }
   }
 
@@ -700,7 +937,7 @@ function App() {
   const consentInvalid = submitAttempted && !form.consent;
   const verificationInvalid = submitAttempted && !turnstileToken;
   const detailsReady = validateValue('name', form.name) && validateValue('email', form.email);
-  const roleReady = validateValue('position', form.position) && Boolean(selectedFile) && !fileError;
+  const roleReady = positionOptions.some((option) => option.value && option.value === form.position) && Boolean(selectedFile) && !fileError;
   const verificationReady = Boolean(form.consent) && Boolean(turnstileToken);
 
   const checklistItems = [
@@ -730,6 +967,23 @@ function App() {
           : turnstileStatus === 'loading'
             ? 'Preparing the secure verification widget. This usually takes a moment.'
             : 'Complete the secure verification before submitting your application.';
+  const submittedWhatsappMessage = [
+    'Hello NT Woods HR team,',
+    'I have completed my careers application.',
+    submittedContext.name ? `Name: ${submittedContext.name}` : '',
+    submittedContext.positionTitle ? `Position: ${submittedContext.positionTitle}` : '',
+    successApplyId ? `Application ID: ${successApplyId}` : '',
+    submittedContext.mobile ? `Mobile: ${submittedContext.mobile}` : '',
+    submittedContext.sourceDisplay ? `Source: ${submittedContext.sourceDisplay}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const showWhatsappButton = Boolean(
+    publicConfig.whatsapp_enabled && isValidWhatsappNumber(publicConfig.whatsapp_number)
+  );
+  const whatsappConfirmationUrl = showWhatsappButton
+    ? `https://wa.me/${publicConfig.whatsapp_number}?text=${encodeURIComponent(submittedWhatsappMessage)}`
+    : '';
 
   return (
     <>
@@ -748,6 +1002,7 @@ function App() {
           <nav className="nav-links" aria-label="Page navigation">
             <a href="#roles">Open Roles</a>
             <a href="#process">Hiring Process</a>
+            <a href="#status-check">Check Status</a>
             <a href="#faq">FAQ</a>
           </nav>
 
@@ -781,6 +1036,16 @@ function App() {
                 <a className="btn-link-secondary" href="#process">View Process</a>
               </div>
 
+              <div className="hero-stats" aria-label="Application overview">
+                {heroStats.map((item) => (
+                  <article className="hero-stat-card" key={item.label}>
+                    <strong>{item.value}</strong>
+                    <span>{item.label}</span>
+                    <small>{item.note}</small>
+                  </article>
+                ))}
+              </div>
+
               <div className="trust-strip" aria-label="Application highlights">
                 <div className="trust-item">
                   <strong>Protected Form</strong>
@@ -799,7 +1064,7 @@ function App() {
               <div className="info-panel" id="roles">
                 <div className="info-panel-title">
                   <h2>Open role categories</h2>
-                  {sourceText ? <span className="source-pill show">Source: {sourceText}</span> : <span className="source-pill" />}
+                  {sourceText ? <span className="source-pill show">Source: {sourceDisplayText}</span> : <span className="source-pill" />}
                 </div>
                 <div className="role-grid">
                   {roleCards.map(([title, description]) => (
@@ -834,6 +1099,14 @@ function App() {
                       </div>
                       <h2>Submit your application</h2>
                       <p className="subtitle">Fill in your basic details, upload your CV, and complete verification before final submission.</p>
+                      <div className="form-brief-grid" aria-label="Application summary">
+                        {formHighlights.map(([label, value]) => (
+                          <div className="form-brief-card" key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
                       <div className="security-row" aria-label="Security notes">
                         <span className="security-badge">
                           <Icon className="icon-inline" name="lock" />
@@ -996,12 +1269,15 @@ function App() {
                               updateField('position', event.target.value);
                               setValidation((current) => ({
                                 ...current,
-                                position: validateValue('position', event.target.value),
+                                position: positionOptions.some((option) => option.value && option.value === event.target.value),
                               }));
                             }}
                           >
-                            {positions.map(([value, label]) => (
-                              <option key={value || 'empty'} value={value}>{label}</option>
+                            {positionOptions.map((option) => (
+                              <option key={option.value || 'empty'} value={option.value}>
+                                {option.label}
+                                {usingDynamicJobs && option.openingCount > 0 ? ` (${option.openingCount} opening${option.openingCount > 1 ? 's' : ''})` : ''}
+                              </option>
                             ))}
                           </select>
                           {positionError ? <div className="field-error-note" id="position-error">{positionError}</div> : null}
@@ -1151,6 +1427,41 @@ function App() {
                       <h2>Application submitted successfully</h2>
                       <p>Thank you for applying. Our HR team will review your application and contact you if your profile matches the current requirement.</p>
                       {successApplyId ? <div className="application-id-box">Application ID: <span>{successApplyId}</span></div> : null}
+                      <div className="success-summary-grid">
+                        {submittedContext.positionTitle ? (
+                          <div className="success-summary-card">
+                            <span>Position applied for</span>
+                            <strong>{submittedContext.positionTitle}</strong>
+                          </div>
+                        ) : null}
+                        <div className="success-summary-card">
+                          <span>Review path</span>
+                          <strong>Manual HR review</strong>
+                        </div>
+                        <div className="success-summary-card">
+                          <span>Source</span>
+                          <strong>{submittedContext.sourceDisplay || 'Website / Direct'}</strong>
+                        </div>
+                      </div>
+                      <div className="success-actionRow">
+                        {successApplyId ? (
+                          <button type="button" className="btn-link-secondary success-actionButton" onClick={handleCopyApplyId}>
+                            Copy Application ID
+                          </button>
+                        ) : null}
+                        {showWhatsappButton ? (
+                          <a
+                            className="btn-link-primary success-actionButton"
+                            href={whatsappConfirmationUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Confirm on WhatsApp
+                            <Icon className="icon-inline" name="arrowRight" />
+                          </a>
+                        ) : null}
+                      </div>
+                      {copyFeedback ? <div className="success-inlineFeedback">{copyFeedback}</div> : null}
                       <div className="success-details">
                         <p><strong>What happens next?</strong></p>
                         <ul className="success-list">
@@ -1164,6 +1475,75 @@ function App() {
                 )}
               </div>
             </aside>
+          </div>
+        </section>
+
+        <section className="section" id="status-check" aria-labelledby="status-check-title">
+          <div className="page-shell">
+            <div className="section-header">
+              <h2 id="status-check-title">Check Application Status</h2>
+              <p>Use your Application ID and the same email you submitted with. This shows only the public application status.</p>
+            </div>
+
+            <div className="status-check-card">
+              <form className="status-check-form" onSubmit={handleStatusCheck}>
+                <div className="status-check-grid">
+                  <label className="form-group">
+                    <span className="required">Application ID</span>
+                    <input
+                      type="text"
+                      value={statusForm.applyId}
+                      placeholder="PA-2026-XXXXXXX"
+                      onChange={(event) => updateStatusField('applyId', event.target.value)}
+                    />
+                  </label>
+                  <label className="form-group">
+                    <span className="required">Email Address</span>
+                    <input
+                      type="email"
+                      value={statusForm.email}
+                      placeholder="your.email@example.com"
+                      onChange={(event) => updateStatusField('email', event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <div className="status-check-actions">
+                  <button type="submit" className="btn btn-primary" disabled={statusLoading}>
+                    <span>{statusLoading ? 'Checking Status...' : 'Check Status'}</span>
+                    {!statusLoading ? <Icon className="btn-icon" name="arrowRight" /> : <span className="spinner" aria-hidden="true" />}
+                  </button>
+                </div>
+              </form>
+
+              {statusError ? <div className="status-check-error" role="alert">{statusError}</div> : null}
+
+              {statusResult ? (
+                <div className="status-result" aria-live="polite">
+                  <div className="status-result-label">{statusResult.statusLabel}</div>
+                  <div className="status-result-meta">
+                    <div className="status-meta-item">
+                      <span>Application ID</span>
+                      <strong>{statusResult.applyId}</strong>
+                    </div>
+                    <div className="status-meta-item">
+                      <span>Position</span>
+                      <strong>{statusResult.positionTitle || '-'}</strong>
+                    </div>
+                    <div className="status-meta-item">
+                      <span>Applied At</span>
+                      <strong>{statusResult.appliedAt || '-'}</strong>
+                    </div>
+                    {statusResult.source ? (
+                      <div className="status-meta-item">
+                        <span>Source</span>
+                        <strong>{statusResult.source}</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </section>
 
