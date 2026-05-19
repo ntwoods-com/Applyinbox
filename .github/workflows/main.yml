@@ -24,6 +24,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -31,7 +34,19 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Verify runtime config
+        run: npm run verify:config
+        env:
+          VITE_API_BASE: https://ntwoods.onrender.com/api
+          VITE_TURNSTILE_SITE_KEY: 0x4AAAAAACVpKor7RIjOUDfl
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run unit tests
+        run: npm test
 
       - name: Build project
         run: npm run build

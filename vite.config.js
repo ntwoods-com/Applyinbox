@@ -1,17 +1,10 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { buildCareersCsp, buildCareersSecurityHeaders } from './scripts/csp.mjs';
 
 const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1];
 const isGithubPages = process.env.VITE_GITHUB_PAGES === 'true';
 const apiProxyTarget = (process.env.VITE_API_PROXY_TARGET || 'https://ntwoods.onrender.com/api').replace(/\/+$/, '');
-
-const securityHeaders = {
-  'Content-Security-Policy': "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' https://challenges.cloudflare.com; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; frame-src https://challenges.cloudflare.com;",
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-  'Referrer-Policy': 'no-referrer',
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-};
 
 const hopByHopHeaders = new Set([
   'connection',
@@ -95,13 +88,30 @@ function createApiProxyMiddleware() {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), createApiProxyMiddleware()],
-  base: isGithubPages && repoName ? `/${repoName}/` : '/',
-  server: {
-    headers: securityHeaders,
-  },
-  preview: {
-    headers: securityHeaders,
-  },
+function createCspPlugin_(csp) {
+  return {
+    name: 'inject-careers-csp-meta',
+    transformIndexHtml(html) {
+      return html.replace('__CAREERS_CSP__', csp);
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const isDev = mode !== 'production';
+  const apiBase = env.VITE_API_BASE || process.env.VITE_API_PROXY_TARGET || 'https://ntwoods.onrender.com/api';
+  const csp = buildCareersCsp({ apiBase, isDev });
+  const securityHeaders = buildCareersSecurityHeaders({ apiBase, isDev });
+
+  return {
+    plugins: [react(), createApiProxyMiddleware(), createCspPlugin_(csp)],
+    base: isGithubPages && repoName ? `/${repoName}/` : '/',
+    server: {
+      headers: securityHeaders,
+    },
+    preview: {
+      headers: securityHeaders,
+    },
+  };
 });

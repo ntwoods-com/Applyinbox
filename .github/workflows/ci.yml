@@ -1,0 +1,42 @@
+name: Careers Frontend CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE: https://ntwoods.onrender.com/api
+      VITE_TURNSTILE_SITE_KEY: 0x4AAAAAACVpKor7RIjOUDfl
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify runtime config
+        run: npm run verify:config
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build project
+        run: npm run build
