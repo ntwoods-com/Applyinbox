@@ -1418,7 +1418,9 @@
       .process-grid,
       .faq-panel,
       .role-grid,
-      .status-check-grid {
+      .status-check-grid,
+      .job-card-grid,
+      .screening-grid {
         grid-template-columns: 1fr;
       }
 
@@ -1474,6 +1476,22 @@
       }
 
       .success-actionRow {
+        flex-direction: column;
+      }
+
+      .job-modal-backdrop {
+        padding: 14px;
+      }
+
+      .job-modal {
+        padding: 18px;
+        border-radius: 22px;
+      }
+
+      .job-modal-head,
+      .job-modal-actions,
+      .job-modal-meta,
+      .resume-preview-head {
         flex-direction: column;
       }
 
@@ -1583,6 +1601,235 @@ button[disabled] { cursor: not-allowed; }
   font-size: 12px;
   font-weight: 700;
   line-height: 1.45;
+}
+
+.job-browser {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(195, 177, 154, 0.58);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.job-browser-header h3,
+.job-modal-section h4 {
+  margin: 0;
+  color: #183127;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.job-browser-header p,
+.resume-preview-note,
+.job-modal-fallback,
+.job-modal-section p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.job-card-grid,
+.screening-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.job-card,
+.screening-card,
+.resume-preview-card {
+  padding: 16px;
+  border: 1px solid rgba(195, 177, 154, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(26, 30, 25, 0.05);
+}
+
+.job-card.selected {
+  border-color: rgba(35, 71, 61, 0.42);
+  background: linear-gradient(180deg, rgba(237, 243, 239, 0.95), rgba(255, 255, 255, 0.98));
+}
+
+.job-card-top,
+.resume-preview-head,
+.job-modal-head,
+.job-modal-actions,
+.job-modal-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-card-top strong,
+.resume-preview-head strong {
+  display: block;
+  color: #183127;
+  font-size: 15px;
+}
+
+.job-card-top span,
+.resume-preview-head span,
+.job-modal-meta span {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.job-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.job-card-link,
+.job-card-apply,
+.job-modal-close {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.job-card-apply {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), #2f5a4d 64%, var(--accent));
+}
+
+.job-card-active {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #0b6b4e;
+  background: #ecfdf5;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.screening-card textarea {
+  min-height: 112px;
+}
+
+.screening-radioGroup {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.screening-radioOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.screening-radioOption input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+}
+
+.resume-preview-card {
+  margin-top: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.resume-preview-frame {
+  width: 100%;
+  min-height: 340px;
+  border: 1px solid rgba(195, 177, 154, 0.72);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.job-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.44);
+  backdrop-filter: blur(8px);
+}
+
+.job-modal {
+  width: min(720px, 100%);
+  max-height: min(90vh, 760px);
+  overflow: auto;
+  padding: 24px;
+  border-radius: 28px;
+  background: #fbf7f0;
+  box-shadow: 0 28px 70px rgba(18, 27, 22, 0.24);
+}
+
+.job-modal-kicker {
+  margin: 0 0 8px;
+  color: #6d4a25;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.job-modal-head h3 {
+  margin: 0 0 8px;
+  color: #183127;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.job-modal-close {
+  font-size: 28px;
+  line-height: 1;
+  color: #64748b;
+}
+
+.job-modal-body {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.job-modal-section {
+  padding: 16px;
+  border: 1px solid rgba(195, 177, 154, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.job-modal-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.job-modal-fallback {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px dashed rgba(195, 177, 154, 0.92);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
 }
 
 /* Verification helper added for Turnstile troubleshooting */

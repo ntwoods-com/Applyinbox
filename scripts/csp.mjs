@@ -35,19 +35,20 @@ function directive(name, values) {
   return `${name} ${unique(values).join(' ')}`;
 }
 
-export function buildCareersCsp({ apiBase, isDev = false } = {}) {
+export function buildCareersCsp({ apiBase, isDev = false, includeFrameAncestors = false } = {}) {
   const apiOrigin = normalizeOrigin(apiBase, { required: true });
   const devConnect = isDev ? ["http://localhost:*", "http://127.0.0.1:*", "ws://localhost:*", "ws://127.0.0.1:*"] : [];
+  const devScript = isDev ? ["'unsafe-inline'"] : [];
 
   const directives = [
     directive("default-src", ["'self'"]),
     directive("base-uri", ["'self'"]),
     directive("object-src", ["'none'"]),
-    directive("frame-ancestors", ["'none'"]),
+    ...(includeFrameAncestors ? [directive("frame-ancestors", ["'none'"])] : []),
     directive("img-src", ["'self'", "data:", "blob:"]),
     directive("style-src", ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]),
     directive("font-src", ["'self'", "https://fonts.gstatic.com"]),
-    directive("script-src", ["'self'", "https://challenges.cloudflare.com"]),
+    directive("script-src", ["'self'", ...devScript, "https://challenges.cloudflare.com"]),
     directive("connect-src", ["'self'", apiOrigin, ...devConnect, "https://challenges.cloudflare.com"]),
     directive("frame-src", ["https://challenges.cloudflare.com"]),
   ];
@@ -57,7 +58,7 @@ export function buildCareersCsp({ apiBase, isDev = false } = {}) {
 
 export function buildCareersSecurityHeaders(options = {}) {
   return {
-    'Content-Security-Policy': buildCareersCsp(options),
+    'Content-Security-Policy': buildCareersCsp({ ...options, includeFrameAncestors: true }),
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
     'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',

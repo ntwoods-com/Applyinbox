@@ -1,5 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { API_BASE, TURNSTILE_SITE_KEY } from './config.js';
+import {
+  fileTypeLabel,
+  formatFileSize,
+  isPreviewablePdfFile,
+  mapPublicApplyError,
+  validateScreeningAnswers,
+} from './publicApplyUi.js';
+import {
+  ResumePreviewCard,
+  ScreeningQuestionsSection,
+} from './publicApplyComponents.jsx';
 
 const DRAFT_KEY = 'ntw_careers_apply_draft_v1';
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -350,12 +361,6 @@ function fieldClass(validity, value) {
   return '';
 }
 
-function formatFileSize(bytes) {
-  if (!bytes) return '';
-  if (bytes < 1024) return '< 1 KB';
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
 async function fetchWithTimeout(url, options, timeoutMs = 20000) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -397,12 +402,18 @@ function App() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState('');
   const [statusResult, setStatusResult] = useState(null);
+  const [activeJobModal, setActiveJobModal] = useState(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
+  const [screeningAnswers, setScreeningAnswers] = useState({});
+  const [screeningErrors, setScreeningErrors] = useState({});
 
   const fileInputRef = useRef(null);
   const turnstileRef = useRef(null);
   const turnstileWidgetIdRef = useRef(null);
   const alertRef = useRef(null);
   const hpRef = useRef(null);
+  const applicationCardRef = useRef(null);
+  const positionInputRef = useRef(null);
   const sourceTextRef = useRef(getSourceText());
   const sessionTokenRef = useRef(generateToken());
   const formLoadTimeRef = useRef(Date.now());
@@ -412,6 +423,8 @@ function App() {
   const positionOptions = usingDynamicJobs
     ? [{ value: '', label: 'Select a position', requirementId: '', dynamic: false }, ...dynamicJobs]
     : fallbackPositionOptions;
+  const selectedPosition = positionOptions.find((option) => option.value === form.position) || null;
+  const activeScreeningQuestions = Array.isArray(selectedPosition?.screeningQuestions) ? selectedPosition.screeningQuestions : [];
   const availableRoleCount = positionOptions.filter((option) => option.value).length;
   const totalDynamicOpenings = usingDynamicJobs
     ? dynamicJobs.reduce((sum, option) => sum + Math.max(0, Number(option.openingCount || 0)), 0)
@@ -520,6 +533,11 @@ function App() {
               label: String(item?.position_title || '').trim(),
               requirementId: String(item?.requirement_id || '').trim(),
               openingCount: Number(item?.opening_count || 0),
+              location: String(item?.location || '').trim(),
+              experience: String(item?.experience || '').trim(),
+              jobDescription: String(item?.job_description || '').trim(),
+              skills: String(item?.skills || '').trim(),
+              screeningQuestions: Array.isArray(item?.screening_questions) ? item.screening_questions : [],
               dynamic: true,
             }))
             .filter((item) => item.value && item.label);
@@ -580,6 +598,18 @@ function App() {
   }, [copyFeedback]);
 
   useEffect(() => {
+    if (!selectedFile || !isPreviewablePdfFile(selectedFile)) {
+      setPdfPreviewUrl('');
+      return undefined;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPdfPreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedFile]);
+
+  useEffect(() => {
     if (!form.position) return;
     const activeOptions = dynamicJobs.length ? dynamicJobs : fallbackPositionOptions;
     if (activeOptions.some((option) => option.value && option.value === form.position)) return;
@@ -587,11 +617,57 @@ function App() {
     setValidation((current) => ({ ...current, position: undefined }));
   }, [dynamicJobs, form.position]);
 
+  useEffect(() => {
+    if (!activeScreeningQuestions.length) {
+      setScreeningAnswers({});
+      setScreeningErrors({});
+      return;
+    }
+    const validIds = new Set(activeScreeningQuestions.map((question) => String(question?.id || '').trim()).filter(Boolean));
+    setScreeningAnswers((current) => {
+      const next = {};
+      for (const [key, value] of Object.entries(current || {})) {
+        if (validIds.has(key)) next[key] = value;
+      }
+      return next;
+    });
+    setScreeningErrors((current) => {
+      const next = {};
+      for (const [key, value] of Object.entries(current || {})) {
+        if (validIds.has(key)) next[key] = value;
+      }
+      return next;
+    });
+  }, [activeScreeningQuestions]);
+
   function showError(message) {
     setAlert({ type: 'error', message });
 
     window.requestAnimationFrame(() => {
       alertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  function focusApplicationForm(nextPosition = '') {
+    if (nextPosition) {
+      updateField('position', nextPosition);
+      setValidation((current) => ({ ...current, position: true }));
+    }
+    window.requestAnimationFrame(() => {
+      applicationCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      positionInputRef.current?.focus();
+    });
+  }
+
+  function updateScreeningAnswer(questionId, value) {
+    const id = String(questionId || '').trim();
+    if (!id) return;
+    setScreeningAnswers((current) => ({ ...current, [id]: String(value || '') }));
+    setScreeningErrors((current) => {
+      if (!current?.[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
     });
   }
 
@@ -719,6 +795,12 @@ function App() {
       return { ok: false, message: fileValidation.message };
     }
 
+    const nextScreeningErrors = validateScreeningAnswers(activeScreeningQuestions, screeningAnswers);
+    setScreeningErrors(nextScreeningErrors);
+    if (Object.keys(nextScreeningErrors).length > 0) {
+      return { ok: false, message: 'Please answer the required screening questions.' };
+    }
+
     if (!form.consent) {
       return { ok: false, message: 'Please confirm the recruitment consent before submitting.' };
     }
@@ -748,8 +830,8 @@ function App() {
       setIsSubmitting(true);
       setButtonText('Creating application...');
 
-      const selectedPosition = positionOptions.find((option) => option.value === form.position) || null;
-      const positionTitle = selectedPosition?.label || '';
+      const selectedOption = positionOptions.find((option) => option.value === form.position) || null;
+      const positionTitle = selectedOption?.label || '';
       const initPayload = {
         turnstile_token: turnstileToken,
         name: form.name.trim(),
@@ -764,8 +846,11 @@ function App() {
       if (sourceText) {
         initPayload.source = sourceText;
       }
-      if (selectedPosition?.dynamic && selectedPosition.requirementId) {
-        initPayload.requirement_id = selectedPosition.requirementId;
+      if (selectedOption?.dynamic && selectedOption.requirementId) {
+        initPayload.requirement_id = selectedOption.requirementId;
+      }
+      if (selectedOption?.dynamic && activeScreeningQuestions.length > 0) {
+        initPayload.screening_answers = screeningAnswers;
       }
 
       const initRes = await fetchWithTimeout(`${API_BASE}/v1/apply/init`, {
@@ -777,18 +862,20 @@ function App() {
         },
         body: JSON.stringify(initPayload),
       });
+      const initData = await initRes.json().catch(() => ({}));
 
       if (initRes.status === 429) {
-        throw new Error('Too many attempts. Please try again in a few minutes.');
+        throw new Error(mapPublicApplyError({ status: initRes.status, payload: initData }));
       }
 
-      if (!initRes.ok) {
-        throw new Error('Network error while creating the application. Please try again.');
-      }
-
-      const initData = await initRes.json();
-      if (!initData.success || !initData.apply_id) {
-        throw new Error(initData.error || 'Failed to submit the application.');
+      if (!initRes.ok || !initData.success || !initData.apply_id) {
+        throw new Error(
+          mapPublicApplyError({
+            status: initRes.status,
+            payload: initData,
+            fallback: 'Failed to submit the application.',
+          })
+        );
       }
 
       initCompleted = true;
@@ -808,18 +895,20 @@ function App() {
         },
         body: uploadFormData,
       });
+      const uploadData = await uploadRes.json().catch(() => ({}));
 
       if (uploadRes.status === 429) {
-        throw new Error('Too many upload attempts. Please try again later.');
+        throw new Error(mapPublicApplyError({ status: uploadRes.status, payload: uploadData }));
       }
 
-      if (!uploadRes.ok) {
-        throw new Error('Failed to upload the CV. Please try again.');
-      }
-
-      const uploadData = await uploadRes.json();
-      if (!uploadData.success) {
-        throw new Error(uploadData.error || 'Failed to upload the CV.');
+      if (!uploadRes.ok || !uploadData.success) {
+        throw new Error(
+          mapPublicApplyError({
+            status: uploadRes.status,
+            payload: uploadData,
+            fallback: 'Failed to upload the CV.',
+          })
+        );
       }
 
       sessionStorage.removeItem(DRAFT_KEY);
@@ -906,7 +995,7 @@ function App() {
 
       const payload = await response.json().catch(() => ({}));
       if (response.status === 429) {
-        throw new Error(payload?.error || 'Please wait before checking the application status again.');
+        throw new Error(mapPublicApplyError({ status: response.status, payload }));
       }
       if (!response.ok || !payload?.success) {
         setStatusError('We could not verify those application details. Please check the Application ID and email.');
@@ -1078,7 +1167,7 @@ function App() {
             </div>
 
             <aside className="application-shell" id="application" aria-label="Application form">
-              <div className="application-card">
+                  <div ref={applicationCardRef} className="application-card">
                 {alert && (
                   <div ref={alertRef} className={`alert ${alert.type === 'success' ? 'alert-success' : 'alert-error'}`} role="alert" aria-live="polite">
                     <span className="alert-icon" aria-hidden="true">
@@ -1130,6 +1219,37 @@ function App() {
                           </div>
                         ))}
                       </div>
+                      {usingDynamicJobs ? (
+                        <div className="job-browser" aria-label="Active approved jobs">
+                          <div className="job-browser-header">
+                            <div>
+                              <h3>Live approved roles</h3>
+                              <p>Browse active openings, review public-safe details, and move straight into the form.</p>
+                            </div>
+                          </div>
+                          <div className="job-card-grid">
+                            {dynamicJobs.map((job) => (
+                              <article key={job.value} className={`job-card ${form.position === job.value ? 'selected' : ''}`}>
+                                <div className="job-card-top">
+                                  <div>
+                                    <strong>{job.label}</strong>
+                                    <span>{job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}</span>
+                                  </div>
+                                  {form.position === job.value ? <span className="job-card-active">Selected</span> : null}
+                                </div>
+                                <div className="job-card-actions">
+                                  <button type="button" className="job-card-link" onClick={() => setActiveJobModal(job)}>
+                                    View Details
+                                  </button>
+                                  <button type="button" className="job-card-apply" onClick={() => focusApplicationForm(job.value)}>
+                                    Apply Now
+                                  </button>
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <form id="apply-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
@@ -1257,6 +1377,7 @@ function App() {
                             Position Applying For
                           </label>
                           <select
+                            ref={positionInputRef}
                             className={validation.position === false ? 'invalid' : ''}
                             id="position"
                             autoComplete="organization-title"
@@ -1295,6 +1416,13 @@ function App() {
                           </select>
                         </div>
                       </div>
+
+                      <ScreeningQuestionsSection
+                        questions={activeScreeningQuestions}
+                        answers={screeningAnswers}
+                        errors={screeningErrors}
+                        onAnswerChange={updateScreeningAnswer}
+                      />
 
                       <div className="form-section-title">Resume upload</div>
 
@@ -1356,7 +1484,7 @@ function App() {
                                 {selectedFile ? (
                                   <>
                                     <span className="file-size">{fileSizeText}</span>
-                                    <span className="file-meta-separator">Ready to upload</span>
+                                    <span className="file-meta-separator">{fileTypeLabel(selectedFile)}</span>
                                   </>
                                 ) : (
                                   'PDF, DOC, DOCX accepted | maximum 2MB'
@@ -1376,6 +1504,12 @@ function App() {
                           </div>
                         </div>
                         {fileError ? <div className="field-error-note">{fileError}</div> : null}
+                        <ResumePreviewCard
+                          file={selectedFile}
+                          fileSizeText={fileSizeText}
+                          pdfPreviewUrl={pdfPreviewUrl}
+                          onChangeFile={() => fileInputRef.current?.click()}
+                        />
                       </div>
 
                       <div className={`consent-card ${consentInvalid ? 'invalid' : ''}`}>
@@ -1477,6 +1611,85 @@ function App() {
             </aside>
           </div>
         </section>
+
+        {activeJobModal ? (
+          <div className="job-modal-backdrop" role="presentation" onClick={() => setActiveJobModal(null)}>
+            <div
+              className="job-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="job-modal-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="job-modal-head">
+                <div>
+                  <p className="job-modal-kicker">Job Details</p>
+                  <h3 id="job-modal-title">{activeJobModal.label}</h3>
+                  {activeJobModal.openingCount > 0 ? (
+                    <span className="job-card-active">{activeJobModal.openingCount} opening{activeJobModal.openingCount > 1 ? 's' : ''}</span>
+                  ) : null}
+                </div>
+                <button type="button" className="job-modal-close" onClick={() => setActiveJobModal(null)} aria-label="Close job details">
+                  ×
+                </button>
+              </div>
+
+              {hasExtendedJobDetails(activeJobModal) ? (
+                <div className="job-modal-body">
+                  {activeJobModal.jobDescription ? (
+                    <div className="job-modal-section">
+                      <h4>Role summary</h4>
+                      <p>{activeJobModal.jobDescription}</p>
+                    </div>
+                  ) : null}
+                  {activeJobModal.skills ? (
+                    <div className="job-modal-section">
+                      <h4>Skills</h4>
+                      <p>{activeJobModal.skills}</p>
+                    </div>
+                  ) : null}
+                  {activeJobModal.location || activeJobModal.experience ? (
+                    <div className="job-modal-meta">
+                      {activeJobModal.location ? <span><strong>Location:</strong> {activeJobModal.location}</span> : null}
+                      {activeJobModal.experience ? <span><strong>Experience:</strong> {activeJobModal.experience}</span> : null}
+                    </div>
+                  ) : null}
+                  {Array.isArray(activeJobModal.screeningQuestions) && activeJobModal.screeningQuestions.length > 0 ? (
+                    <div className="job-modal-section">
+                      <h4>Pre-screening</h4>
+                      <ul className="job-modal-list">
+                        {activeJobModal.screeningQuestions.map((question) => (
+                          <li key={question.id}>{question.question}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="job-modal-fallback">
+                  Detailed role information is not available for this position yet. You can still continue with the application form.
+                </div>
+              )}
+
+              <div className="job-modal-actions">
+                <button type="button" className="btn-link-secondary" onClick={() => setActiveJobModal(null)}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn-link-primary"
+                  onClick={() => {
+                    const nextJobCode = activeJobModal.value;
+                    setActiveJobModal(null);
+                    focusApplicationForm(nextJobCode);
+                  }}
+                >
+                  Apply Now
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <section className="section" id="status-check" aria-labelledby="status-check-title">
           <div className="page-shell">

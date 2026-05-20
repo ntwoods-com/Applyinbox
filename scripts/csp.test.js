@@ -15,5 +15,16 @@ describe('buildCareersCsp', () => {
     expect(csp).not.toContain('http://localhost:*');
     expect(csp).not.toContain('ws://localhost:*');
     expect(csp).not.toMatch(/connect-src 'self' https:(?:;| )/);
+    expect(csp).not.toContain('frame-ancestors');
+  });
+
+  it('allows the Vite React dev preamble only in development mode', () => {
+    const csp = buildCareersCsp({
+      apiBase: 'http://localhost:8000/api',
+      isDev: true,
+    });
+
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp).toContain('ws://localhost:*');
   });
 });
