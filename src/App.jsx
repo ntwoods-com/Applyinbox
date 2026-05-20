@@ -8,6 +8,7 @@ import {
   validateScreeningAnswers,
 } from './publicApplyUi.js';
 import {
+  JobDetailsModal,
   ResumePreviewCard,
   ScreeningQuestionsSection,
 } from './publicApplyComponents.jsx';
@@ -1612,7 +1613,16 @@ function App() {
           </div>
         </section>
 
-        {activeJobModal ? (
+        <JobDetailsModal
+          job={activeJobModal}
+          onClose={() => setActiveJobModal(null)}
+          onApplyNow={() => {
+            const nextJobCode = activeJobModal?.value || '';
+            setActiveJobModal(null);
+            focusApplicationForm(nextJobCode);
+          }}
+        />
+        {/* legacy inline modal removed in favor of shared component
           <div className="job-modal-backdrop" role="presentation" onClick={() => setActiveJobModal(null)}>
             <div
               className="job-modal"
@@ -1689,7 +1699,7 @@ function App() {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : null} */}
 
         <section className="section" id="status-check" aria-labelledby="status-check-title">
           <div className="page-shell">
