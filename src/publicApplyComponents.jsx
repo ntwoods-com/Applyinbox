@@ -19,7 +19,11 @@ export function ScreeningQuestionsSection({
           const answer = answers[questionId] || '';
           const error = errors[questionId] || '';
           const type = String(question?.type || 'text').toLowerCase();
-          const options = Array.isArray(question?.options) ? question.options : [];
+          const legacyOptions = Array.isArray(question?.options) ? question.options : [];
+          const options =
+            type === 'yes_no' && legacyOptions.length === 0
+              ? ['Yes', 'No']
+              : legacyOptions;
 
           return (
             <div className="form-group screening-card" key={questionId}>
@@ -35,7 +39,7 @@ export function ScreeningQuestionsSection({
                   aria-invalid={Boolean(error)}
                   onChange={(event) => onAnswerChange(questionId, event.target.value)}
                 />
-              ) : type === 'select' ? (
+              ) : type === 'select' || type === 'dropdown' ? (
                 <select
                   id={`screening-${questionId}`}
                   value={answer}
@@ -47,7 +51,7 @@ export function ScreeningQuestionsSection({
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
-              ) : type === 'radio' ? (
+              ) : type === 'radio' || type === 'yes_no' ? (
                 <div className="screening-radioGroup">
                   {options.map((option) => (
                     <label key={option} className="screening-radioOption">

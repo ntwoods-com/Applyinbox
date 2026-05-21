@@ -83,4 +83,50 @@ describe('public apply components', () => {
     fireEvent.click(screen.getByLabelText('Yes'));
     expect(onAnswerChange).toHaveBeenCalledWith('weekend_shift', 'Yes');
   });
+
+  it('renders admin-authored yes_no questions as a Yes/No radio group', () => {
+    const onAnswerChange = vi.fn();
+    render(
+      <ScreeningQuestionsSection
+        questions={[
+          {
+            id: 'ready_to_join',
+            question: 'Can you join in 15 days?',
+            type: 'yes_no',
+            required: true,
+          },
+        ]}
+        answers={{}}
+        errors={{}}
+        onAnswerChange={onAnswerChange}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText('No'));
+    expect(onAnswerChange).toHaveBeenCalledWith('ready_to_join', 'No');
+  });
+
+  it('renders admin-authored dropdown questions with backend-provided options', () => {
+    const onAnswerChange = vi.fn();
+    render(
+      <ScreeningQuestionsSection
+        questions={[
+          {
+            id: 'notice_period',
+            question: 'Notice period?',
+            type: 'dropdown',
+            options: ['Immediate', '15 days', '30 days'],
+          },
+        ]}
+        answers={{}}
+        errors={{}}
+        onAnswerChange={onAnswerChange}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText('Notice period?'), {
+      target: { value: '15 days' },
+    });
+    expect(onAnswerChange).toHaveBeenCalledWith('notice_period', '15 days');
+  });
 });
