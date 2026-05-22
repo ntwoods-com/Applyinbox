@@ -61,7 +61,16 @@ function getApplicationEmailInput() {
   return screen.getAllByLabelText(/Email Address/i)[0];
 }
 
+async function openApplicationPage() {
+  const startLink = screen.queryByRole('link', { name: /Start Application/i });
+  if (startLink) {
+    fireEvent.click(startLink);
+  }
+  await screen.findByRole('heading', { name: 'Submit your application' });
+}
+
 async function completeContactStep() {
+  await openApplicationPage();
   fireEvent.change(await screen.findByLabelText(/Full Name/i), { target: { value: 'Rahul Sharma' } });
   fireEvent.change(getApplicationEmailInput(), { target: { value: 'rahul@example.com' } });
   fireEvent.click(screen.getByRole('button', { name: /Continue to role selection/i }));
@@ -102,6 +111,7 @@ describe('Applyinbox candidate journey', () => {
       remove: vi.fn(),
     };
     sessionStorage.clear();
+    window.history.replaceState(null, '', '#top');
   });
 
   afterEach(() => {
@@ -131,6 +141,7 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
+    expect(screen.queryByRole('heading', { name: 'Submit your application' })).toBeNull();
     await completeContactStep();
 
     expect(await screen.findByRole('heading', { name: 'Role preference' })).toBeTruthy();
