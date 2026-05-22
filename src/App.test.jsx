@@ -61,6 +61,12 @@ function getApplicationEmailInput() {
   return screen.getAllByLabelText(/Email Address/i)[0];
 }
 
+async function completeContactStep() {
+  fireEvent.change(await screen.findByLabelText(/Full Name/i), { target: { value: 'Rahul Sharma' } });
+  fireEvent.change(getApplicationEmailInput(), { target: { value: 'rahul@example.com' } });
+  fireEvent.click(screen.getByRole('button', { name: /Continue to role selection/i }));
+}
+
 describe('Applyinbox candidate journey', () => {
   let nowValue = 0;
 
@@ -111,10 +117,24 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
+    fireEvent.click(await screen.findByRole('button', { name: /Role and screening/i }));
     const positionSelect = await screen.findByLabelText(/Position Applying For/i);
     expect(positionSelect).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Accountant' })).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Other' })).toBeTruthy();
+  });
+
+  it('moves to the next step page after the contact step is completed', async () => {
+    global.fetch = buildFetchMock({
+      jobs: [],
+    });
+
+    render(<App />);
+
+    await completeContactStep();
+
+    expect(await screen.findByRole('heading', { name: 'Role preference' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Personal details' })).toBeNull();
   });
 
   it('opens job details and Apply Now selects the matching live role', async () => {
@@ -142,6 +162,7 @@ describe('Applyinbox candidate journey', () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/Position Applying For/i).value).toBe('OPS-001');
     });
+    expect(screen.getByRole('heading', { name: 'Role preference' })).toBeTruthy();
   });
 
   it('resets stale screening answers when the selected live role changes', async () => {
@@ -162,6 +183,7 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
+    fireEvent.click(await screen.findByRole('button', { name: /Role and screening/i }));
     const positionSelect = await screen.findByLabelText(/Position Applying For/i);
     fireEvent.change(positionSelect, { target: { value: 'OPS-001' } });
     const firstQuestion = await screen.findByLabelText('Notice period?');
@@ -190,12 +212,9 @@ describe('Applyinbox candidate journey', () => {
     render(<App />);
     nowValue = 5000;
 
-    fireEvent.change(await screen.findByLabelText(/Full Name/i), { target: { value: 'Rahul Sharma' } });
-    fireEvent.change(getApplicationEmailInput(), { target: { value: 'rahul@example.com' } });
+    await completeContactStep();
     fireEvent.change(screen.getByLabelText(/Position Applying For/i), { target: { value: 'OPS-001' } });
-    selectFile(screen.getByLabelText(/Resume \/ CV/i), new File(['pdf'], 'resume.pdf', { type: 'application/pdf' }));
-    fireEvent.click(screen.getByLabelText(/I confirm that the information provided is correct/i));
-    fireEvent.click(screen.getByRole('button', { name: /Submit Application/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Continue to resume upload/i }));
 
     expect(await screen.findByText('Please answer the required screening questions.')).toBeTruthy();
     expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -217,15 +236,25 @@ describe('Applyinbox candidate journey', () => {
     render(<App />);
     nowValue = 5000;
 
-    fireEvent.change(await screen.findByLabelText(/Full Name/i), { target: { value: 'Rahul Sharma' } });
-    fireEvent.change(getApplicationEmailInput(), { target: { value: 'rahul@example.com' } });
+    await completeContactStep();
     fireEvent.change(screen.getByLabelText(/Position Applying For/i), { target: { value: 'OPS-001' } });
     fireEvent.change(screen.getByLabelText('Notice period?'), { target: { value: 'Immediate' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continue to resume upload/i }));
     selectFile(screen.getByLabelText(/Resume \/ CV/i), new File(['pdf'], 'resume.pdf', { type: 'application/pdf' }));
+    fireEvent.click(screen.getByRole('button', { name: /Continue to verification/i }));
+    await screen.findByRole('heading', { name: 'Consent and verification' });
     fireEvent.click(screen.getByLabelText(/I confirm that the information provided is correct/i));
-    fireEvent.click(screen.getByRole('button', { name: /Submit Application/i }));
+    const submitButton = screen.getByRole('button', { name: /Submit Application/i });
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
+    fireEvent.click(submitButton);
 
-    expect(await screen.findByText(/Application submitted successfully/i)).toBeTruthy();
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/v1/apply/init'))).toBe(true);
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/v1/apply/upload-cv'))).toBe(true);
+    });
+    expect(await screen.findByRole('heading', { name: 'Application submitted successfully' })).toBeTruthy();
 
     const initCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/v1/apply/init'));
     expect(initCall).toBeTruthy();

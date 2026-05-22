@@ -2906,3 +2906,435 @@ select.invalid {
     padding: 16px;
   }
 }
+
+/* 2026 candidate polish overrides */
+:root {
+  --wood-ink: #193126;
+  --wood-soft: #5b6e63;
+  --wood-warm: #9f6f3d;
+  --paper: rgba(255, 251, 245, 0.82);
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(70, 132, 112, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 8%, rgba(159, 111, 61, 0.14), transparent 22%),
+    linear-gradient(140deg, #f5f8f2 0%, #eef4ff 42%, #fffaf2 100%);
+}
+
+body::before {
+  background-image:
+    linear-gradient(rgba(25, 49, 38, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(159, 111, 61, 0.026) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+
+.site-header {
+  border-bottom-color: rgba(25, 49, 38, 0.08);
+  background: rgba(255, 252, 248, 0.82);
+}
+
+.brand-mark {
+  background: linear-gradient(145deg, #244a3d, #2c8aef 72%, #34d399);
+}
+
+.brand-title {
+  color: var(--wood-ink);
+}
+
+.brand-subtitle {
+  color: #6f7d75;
+}
+
+.nav-links {
+  color: #50665a;
+}
+
+.nav-links a {
+  border: 1px solid transparent;
+}
+
+.nav-links a:hover,
+.nav-links a:focus-visible {
+  color: var(--wood-ink);
+  border-color: rgba(36, 74, 61, 0.12);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.nav-cta,
+.btn-link-primary,
+.btn.btn-primary {
+  background: linear-gradient(145deg, #23493c 0%, #2c8aef 82%);
+  box-shadow: 0 18px 32px rgba(30, 73, 59, 0.18);
+}
+
+.btn-link-secondary {
+  color: var(--wood-ink);
+  border-color: rgba(36, 74, 61, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.hero {
+  padding: 78px 0 56px;
+}
+
+.hero::before {
+  inset: 24px 0 auto;
+  height: 520px;
+  background:
+    radial-gradient(circle at 5% 5%, rgba(36, 74, 61, 0.18), transparent 22%),
+    radial-gradient(circle at 92% 2%, rgba(159, 111, 61, 0.16), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0));
+}
+
+.hero-copy {
+  display: grid;
+  gap: 22px;
+}
+
+h1 {
+  color: var(--wood-ink);
+  margin-bottom: 10px;
+}
+
+.hero-gradient-text {
+  background: linear-gradient(135deg, #2c8aef 0%, #244a3d 48%, #9f6f3d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.hero-lead {
+  max-width: 620px;
+  color: var(--wood-soft);
+  font-size: 18px;
+}
+
+.hero-actions {
+  margin-top: 0;
+}
+
+.hero-stats {
+  margin-top: 0;
+}
+
+.hero-stat-card {
+  min-height: 170px;
+  border-color: rgba(36, 74, 61, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 251, 247, 0.92));
+  box-shadow: 0 18px 36px rgba(25, 49, 38, 0.08);
+}
+
+.hero-stat-card span {
+  color: var(--wood-warm);
+}
+
+.hero-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 760px;
+}
+
+.hero-proof-card {
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid rgba(36, 74, 61, 0.12);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(250, 245, 238, 0.88));
+  box-shadow: 0 14px 30px rgba(30, 44, 37, 0.06);
+}
+
+.hero-proof-card strong {
+  display: block;
+  color: var(--wood-ink);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.hero-proof-card span {
+  display: block;
+  margin-top: 8px;
+  color: var(--wood-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.info-panel {
+  margin-top: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(246, 250, 255, 0.92));
+}
+
+.role-card {
+  padding: 18px 16px;
+  border-color: rgba(36, 74, 61, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 251, 255, 0.92));
+}
+
+.role-card b {
+  font-size: 15px;
+}
+
+.application-shell {
+  padding: 20px;
+  border-color: rgba(36, 74, 61, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 250, 244, 0.66));
+  box-shadow: 0 34px 82px rgba(25, 49, 38, 0.12);
+}
+
+.application-card {
+  padding: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(252, 249, 244, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.application-stage-rail {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid rgba(36, 74, 61, 0.1);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(240, 247, 255, 0.92), rgba(247, 241, 233, 0.88));
+}
+
+.application-stage-kicker {
+  display: inline-flex;
+  margin-bottom: 6px;
+  color: var(--wood-warm);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.application-stage-rail strong {
+  display: block;
+  color: var(--wood-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 24px;
+  line-height: 1.05;
+}
+
+.application-stage-rail p {
+  margin: 8px 0 0;
+  max-width: 520px;
+  color: var(--wood-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.application-stage-counter {
+  margin-top: 8px;
+  color: var(--wood-warm);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.application-stage-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.application-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(36, 74, 61, 0.12);
+  border-radius: 999px;
+  color: var(--wood-ink);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.progress-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.progress-card {
+  min-height: 112px;
+  border-color: rgba(36, 74, 61, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.92));
+}
+
+.progress-card.current {
+  border-color: rgba(44, 138, 239, 0.38);
+  box-shadow: 0 18px 30px rgba(44, 138, 239, 0.12);
+}
+
+.progress-card.complete {
+  border-color: rgba(22, 131, 90, 0.24);
+}
+
+.form-step-block {
+  padding: 22px;
+  border-color: rgba(36, 74, 61, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(251, 248, 244, 0.94));
+}
+
+.form-step-block.is-current {
+  border-color: rgba(44, 138, 239, 0.24);
+}
+
+.job-browser {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(36, 74, 61, 0.12);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(245, 248, 255, 0.9), rgba(255, 252, 247, 0.88));
+}
+
+.job-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.job-card {
+  display: grid;
+  gap: 14px;
+  min-height: 220px;
+  padding: 18px;
+  border: 1px solid rgba(36, 74, 61, 0.12);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 255, 0.92));
+  box-shadow: 0 14px 28px rgba(25, 49, 38, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.job-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(44, 138, 239, 0.28);
+  box-shadow: 0 22px 36px rgba(25, 49, 38, 0.1);
+}
+
+.job-card.selected {
+  border-color: rgba(22, 131, 90, 0.3);
+  box-shadow: 0 22px 40px rgba(22, 131, 90, 0.12);
+}
+
+.job-card-body {
+  display: grid;
+  gap: 12px;
+}
+
+.job-card-summary {
+  margin: 0;
+  color: #4e5e56;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.job-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.job-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #355347;
+  background: rgba(244, 247, 252, 0.92);
+  border: 1px solid rgba(36, 74, 61, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.step-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.step-actions-split {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.step-backButton {
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+.resume-preview-card,
+.status-check-card,
+.benefit-card,
+.process-card,
+.faq-item {
+  box-shadow: 0 18px 34px rgba(25, 49, 38, 0.08);
+}
+
+.status-check-card {
+  background:
+    linear-gradient(180deg, rgba(22, 37, 31, 0.82), rgba(22, 37, 31, 0.74)),
+    linear-gradient(145deg, rgba(159, 111, 61, 0.2), transparent 52%);
+}
+
+.benefit-card,
+.process-card,
+.faq-item {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(251, 248, 244, 0.9));
+}
+
+.site-footer {
+  margin-top: 56px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+@media (max-width: 980px) {
+  .hero-proof-grid,
+  .job-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .application-stage-rail {
+    flex-direction: column;
+  }
+
+  .application-stage-pills {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 820px) {
+  .progress-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .step-actions,
+  .step-actions-split {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .step-actions .btn,
+  .step-actions .btn-link-secondary,
+  .step-actions-split .btn,
+  .step-actions-split .btn-link-secondary {
+    width: 100%;
+  }
+}

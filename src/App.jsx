@@ -80,6 +80,8 @@ const experienceOptions = [
   ['5', '5+ Years'],
 ];
 
+const STEP_ORDER = ['contact', 'role', 'resume', 'verify'];
+
 const fallbackPositionOptions = fallbackPositions.map(([value, label]) => ({
   value,
   label,
@@ -423,6 +425,7 @@ function App() {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
   const [screeningAnswers, setScreeningAnswers] = useState({});
   const [screeningErrors, setScreeningErrors] = useState({});
+  const [visibleStep, setVisibleStep] = useState('contact');
 
   const fileInputRef = useRef(null);
   const turnstileRef = useRef(null);
@@ -475,6 +478,13 @@ function App() {
     ['Role feed', usingDynamicJobs ? 'Live approved job list' : 'Curated fallback roles'],
     ['Review path', 'Manual HR screening'],
     ['Source', sourceText ? sourceDisplayText : 'Website / Direct'],
+  ];
+  const heroProofItems = [
+    ['Manual review only', 'Every application stays in an HR review queue before any shortlist decision is made.'],
+    ['Protected submission', 'Your basic details and CV stay tied to one application ID through the apply flow.'],
+    [usingDynamicJobs ? 'Live openings' : 'Fallback roles ready', usingDynamicJobs
+      ? 'Active approved roles are synced from the HRMS when available.'
+      : 'Fallback role categories remain available even if the jobs feed is temporarily unavailable.'],
   ];
 
   useEffect(() => {
@@ -680,18 +690,20 @@ function App() {
   }
 
   function focusStep(stepKey) {
-    const target = stepRefFor(stepKey);
+    const normalizedStep = STEP_ORDER.includes(stepKey) ? stepKey : 'contact';
+    setVisibleStep(normalizedStep);
     window.requestAnimationFrame(() => {
-      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (stepKey === 'contact') {
-        nameInputRef.current?.focus();
-      } else if (stepKey === 'role') {
-        positionInputRef.current?.focus();
-      } else if (stepKey === 'resume') {
-        fileInputRef.current?.click();
-      } else if (stepKey === 'verify') {
-        turnstileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      window.requestAnimationFrame(() => {
+        const target = stepRefFor(normalizedStep);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (normalizedStep === 'contact') {
+          nameInputRef.current?.focus();
+        } else if (normalizedStep === 'role') {
+          positionInputRef.current?.focus();
+        } else if (normalizedStep === 'verify') {
+          turnstileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
     });
   }
 
@@ -711,9 +723,12 @@ function App() {
       updateField('position', nextPosition);
       setValidation((current) => ({ ...current, position: true }));
     }
+    setVisibleStep('role');
     window.requestAnimationFrame(() => {
-      applicationCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      positionInputRef.current?.focus();
+      window.requestAnimationFrame(() => {
+        applicationCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        positionInputRef.current?.focus();
+      });
     });
   }
 
@@ -872,6 +887,108 @@ function App() {
     }
 
     return { ok: true };
+  }
+
+  function validateContactStep() {
+    const nameValid = validateField('name');
+    const emailValid = validateField('email');
+    const mobileValid = validateField('mobile');
+    const locationValid = validateField('location');
+
+    if (!nameValid || !emailValid || !mobileValid || !locationValid) {
+      return {
+        ok: false,
+        message: 'Please complete the contact details before continuing.',
+        stepKey: 'contact',
+      };
+    }
+
+    return { ok: true };
+  }
+
+  function validateRoleStep() {
+    const positionValid = validateField('position');
+    if (!positionValid) {
+      return {
+        ok: false,
+        message: 'Please select the position you want to apply for.',
+        stepKey: 'role',
+      };
+    }
+
+    const nextScreeningErrors = validateScreeningAnswers(activeScreeningQuestions, screeningAnswers);
+    setScreeningErrors(nextScreeningErrors);
+    if (Object.keys(nextScreeningErrors).length > 0) {
+      return {
+        ok: false,
+        message: 'Please answer the required screening questions.',
+        stepKey: 'role',
+      };
+    }
+
+    return { ok: true };
+  }
+
+  function validateResumeStep() {
+    const fileValidation = validateFile(selectedFile);
+    if (!fileValidation.ok) {
+      return {
+        ok: false,
+        message: fileValidation.message,
+        stepKey: 'resume',
+      };
+    }
+
+    return { ok: true };
+  }
+
+  function validateVerifyStep() {
+    if (!form.consent) {
+      return {
+        ok: false,
+        message: 'Please confirm the recruitment consent before continuing.',
+        stepKey: 'verify',
+      };
+    }
+
+    if (!turnstileToken) {
+      return {
+        ok: false,
+        message: 'Complete the verification section before continuing.',
+        stepKey: 'verify',
+      };
+    }
+
+    return { ok: true };
+  }
+
+  function handleStepContinue(stepKey) {
+    let result = { ok: true };
+
+    if (stepKey === 'contact') {
+      result = validateContactStep();
+    } else if (stepKey === 'role') {
+      result = validateRoleStep();
+    } else if (stepKey === 'resume') {
+      result = validateResumeStep();
+    } else if (stepKey === 'verify') {
+      result = validateVerifyStep();
+    }
+
+    if (!result.ok) {
+      showError(result.message, result.stepKey);
+      return;
+    }
+
+    const currentIndex = STEP_ORDER.indexOf(stepKey);
+    const nextStep = STEP_ORDER[Math.min(currentIndex + 1, STEP_ORDER.length - 1)];
+    focusStep(nextStep);
+  }
+
+  function handleStepBack(stepKey) {
+    const currentIndex = STEP_ORDER.indexOf(stepKey);
+    const previousStep = STEP_ORDER[Math.max(0, currentIndex - 1)];
+    focusStep(previousStep);
   }
 
   async function handleSubmit(event) {
@@ -1101,6 +1218,11 @@ function App() {
       !roleReady ? 'role' :
         !resumeReady ? 'resume' :
           !verificationReady ? 'verify' : 'done';
+  const currentStepLabel =
+    visibleStep === 'contact' ? 'Personal details' :
+      visibleStep === 'role' ? 'Role and screening' :
+        visibleStep === 'resume' ? 'Resume upload' :
+          visibleStep === 'verify' ? 'Consent and verification' : 'Ready for final submission';
 
   const checklistItems = [
     ['Step 1', 'Contact details', 'Name, email, and optional contact details.', detailsReady, 'contact'],
@@ -1108,6 +1230,7 @@ function App() {
     ['Step 3', 'Resume upload', 'Attach a supported PDF, DOC, or DOCX file.', resumeReady, 'resume'],
     ['Step 4', 'Consent and verify', 'Confirm consent and complete the secure check.', verificationReady, 'verify'],
   ];
+  const visibleStepIndex = Math.max(0, STEP_ORDER.indexOf(visibleStep));
 
   const verificationLabel =
     turnstileStatus === 'verified'
@@ -1207,19 +1330,13 @@ function App() {
                 ))}
               </div>
 
-              <div className="trust-strip" aria-label="Application highlights">
-                <div className="trust-item">
-                  <strong>Protected Form</strong>
-                  <span>Turnstile verification and bot checks are enabled.</span>
-                </div>
-                <div className="trust-item">
-                  <strong>HR Review</strong>
-                  <span>Applications are reviewed by the internal HR team.</span>
-                </div>
-                <div className="trust-item">
-                  <strong>Fast Apply</strong>
-                  <span>Keep your CV ready and complete the form in minutes.</span>
-                </div>
+              <div className="hero-proof-grid" aria-label="Application highlights">
+                {heroProofItems.map(([title, note]) => (
+                  <article className="hero-proof-card" key={title}>
+                    <strong>{title}</strong>
+                    <span>{note}</span>
+                  </article>
+                ))}
               </div>
 
               <div className="info-panel" id="roles">
@@ -1239,7 +1356,24 @@ function App() {
             </div>
 
             <aside className="application-shell" id="application" aria-label="Application form">
-                  <div ref={applicationCardRef} className="application-card">
+              <div ref={applicationCardRef} className="application-card">
+                <div className="application-stage-rail" aria-label="Current form status">
+                  <div>
+                    <span className="application-stage-kicker">Candidate workspace</span>
+                    <strong>{currentStepLabel}</strong>
+                    <div className="application-stage-counter">Step {visibleStepIndex + 1} of {STEP_ORDER.length}</div>
+                    <p>
+                      {usingDynamicJobs
+                        ? 'This form is using live approved role data from the HRMS.'
+                        : 'Fallback roles are active so you can continue even if the live jobs feed is unavailable.'}
+                    </p>
+                  </div>
+                  <div className="application-stage-pills">
+                    <span className="application-stage-pill">{usingDynamicJobs ? 'Live roles' : 'Fallback roles'}</span>
+                    <span className="application-stage-pill">{selectedFile ? fileTypeLabel(selectedFile) : 'CV pending'}</span>
+                    <span className="application-stage-pill">{verificationLabel}</span>
+                  </div>
+                </div>
                 {alert && (
                   <div ref={alertRef} className={`alert ${alert.type === 'success' ? 'alert-success' : 'alert-error'}`} role="alert" aria-live="polite">
                     <span className="alert-icon" aria-hidden="true">
@@ -1282,12 +1416,13 @@ function App() {
                         {checklistItems.map(([step, title, note, ready, stepKey]) => (
                           <button
                             type="button"
-                            className={`progress-card ${ready ? 'complete' : ''} ${currentStep === stepKey ? 'current' : ''}`}
+                            className={`progress-card ${ready ? 'complete' : ''} ${visibleStep === stepKey ? 'current' : ''}`}
                             key={title}
+                            aria-current={visibleStep === stepKey ? 'step' : undefined}
                             onClick={() => focusStep(stepKey)}
                           >
                             <span className="progress-icon" aria-hidden="true">
-                              <Icon className="icon-inline" name={ready ? 'checkCircle' : currentStep === stepKey ? 'arrowRight' : 'briefcase'} />
+                              <Icon className="icon-inline" name={ready ? 'checkCircle' : visibleStep === stepKey ? 'arrowRight' : 'briefcase'} />
                             </span>
                             <div>
                               <small className="progress-stepLabel">{step}</small>
@@ -1315,6 +1450,20 @@ function App() {
                                   </div>
                                   {form.position === job.value ? <span className="job-card-active">Selected</span> : null}
                                 </div>
+                                <div className="job-card-body">
+                                  <p className="job-card-summary">
+                                    {job.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the application form now.'}
+                                  </p>
+                                  <div className="job-card-meta">
+                                    {job.location ? <span>Location: {job.location}</span> : null}
+                                    {job.experience ? <span>Experience: {job.experience}</span> : null}
+                                    <span>
+                                      {Array.isArray(job.screeningQuestions) && job.screeningQuestions.length > 0
+                                        ? `${job.screeningQuestions.length} screening question${job.screeningQuestions.length > 1 ? 's' : ''}`
+                                        : 'No pre-screening'}
+                                    </span>
+                                  </div>
+                                </div>
                                 <div className="job-card-actions">
                                   <button type="button" className="job-card-link" onClick={() => setActiveJobModal(job)}>
                                     <Icon className="icon-inline" name="search" /> View Details
@@ -1338,9 +1487,10 @@ function App() {
                       <input type="hidden" id="_timestamp" name="_timestamp" value={formLoadTimeRef.current} readOnly />
                       <input type="hidden" id="_token" name="_token" value={sessionTokenRef.current} readOnly />
 
+                      {visibleStep === 'contact' ? (
                       <section
                         ref={contactStepRef}
-                        className={`form-step-block ${detailsReady ? 'is-complete' : ''} ${currentStep === 'contact' ? 'is-current' : ''}`}
+                        className={`form-step-block ${detailsReady ? 'is-complete' : ''} ${visibleStep === 'contact' ? 'is-current' : ''}`}
                         aria-labelledby="apply-step-contact"
                       >
                         <div className="form-step-header">
@@ -1349,8 +1499,8 @@ function App() {
                             <h3 id="apply-step-contact">Personal details</h3>
                             <p>Enter the contact details HR should use for your application review.</p>
                           </div>
-                          <span className={`form-step-state ${detailsReady ? 'complete' : currentStep === 'contact' ? 'current' : ''}`}>
-                            {detailsReady ? 'Ready' : currentStep === 'contact' ? 'In progress' : 'Pending'}
+                          <span className={`form-step-state ${detailsReady ? 'complete' : visibleStep === 'contact' ? 'current' : ''}`}>
+                            {detailsReady ? 'Ready' : visibleStep === 'contact' ? 'In progress' : 'Pending'}
                           </span>
                         </div>
 
@@ -1460,11 +1610,19 @@ function App() {
                           {locationError ? <div className="field-error-note" id="location-error">{locationError}</div> : null}
                         </div>
                       </div>
+                      <div className="step-actions">
+                        <button type="button" className="btn btn-primary" onClick={() => handleStepContinue('contact')}>
+                          <span>Continue to role selection</span>
+                          <Icon className="btn-icon" name="arrowRight" />
+                        </button>
+                      </div>
                       </section>
+                      ) : null}
 
+                      {visibleStep === 'role' ? (
                       <section
                         ref={roleStepRef}
-                        className={`form-step-block ${roleReady ? 'is-complete' : ''} ${currentStep === 'role' ? 'is-current' : ''}`}
+                        className={`form-step-block ${roleReady ? 'is-complete' : ''} ${visibleStep === 'role' ? 'is-current' : ''}`}
                         aria-labelledby="apply-step-role"
                       >
                         <div className="form-step-header">
@@ -1473,8 +1631,8 @@ function App() {
                             <h3 id="apply-step-role">Role preference</h3>
                             <p>Select the position you want to apply for. Role-specific questions appear only when needed.</p>
                           </div>
-                          <span className={`form-step-state ${roleReady ? 'complete' : currentStep === 'role' ? 'current' : ''}`}>
-                            {roleReady ? 'Ready' : currentStep === 'role' ? 'In progress' : 'Pending'}
+                          <span className={`form-step-state ${roleReady ? 'complete' : visibleStep === 'role' ? 'current' : ''}`}>
+                            {roleReady ? 'Ready' : visibleStep === 'role' ? 'In progress' : 'Pending'}
                           </span>
                         </div>
 
@@ -1534,11 +1692,22 @@ function App() {
                       {selectedPosition?.dynamic && activeScreeningQuestions.length === 0 ? (
                         <p className="screening-section-empty">No pre-screening questions are required for this role right now.</p>
                       ) : null}
+                      <div className="step-actions step-actions-split">
+                        <button type="button" className="btn-link-secondary step-backButton" onClick={() => handleStepBack('role')}>
+                          Back
+                        </button>
+                        <button type="button" className="btn btn-primary" onClick={() => handleStepContinue('role')}>
+                          <span>Continue to resume upload</span>
+                          <Icon className="btn-icon" name="arrowRight" />
+                        </button>
+                      </div>
                       </section>
+                      ) : null}
 
+                      {visibleStep === 'resume' ? (
                       <section
                         ref={resumeStepRef}
-                        className={`form-step-block ${resumeReady ? 'is-complete' : ''} ${currentStep === 'resume' ? 'is-current' : ''}`}
+                        className={`form-step-block ${resumeReady ? 'is-complete' : ''} ${visibleStep === 'resume' ? 'is-current' : ''}`}
                         aria-labelledby="apply-step-resume"
                       >
                         <div className="form-step-header">
@@ -1547,8 +1716,8 @@ function App() {
                             <h3 id="apply-step-resume">Resume upload</h3>
                             <p>Upload your latest CV. PDF gives the best preview experience before submission.</p>
                           </div>
-                          <span className={`form-step-state ${resumeReady ? 'complete' : currentStep === 'resume' ? 'current' : ''}`}>
-                            {resumeReady ? 'Ready' : currentStep === 'resume' ? 'In progress' : 'Pending'}
+                          <span className={`form-step-state ${resumeReady ? 'complete' : visibleStep === 'resume' ? 'current' : ''}`}>
+                            {resumeReady ? 'Ready' : visibleStep === 'resume' ? 'In progress' : 'Pending'}
                           </span>
                         </div>
 
@@ -1638,11 +1807,22 @@ function App() {
                           onRemoveFile={resetFileInput}
                         />
                       </div>
+                      <div className="step-actions step-actions-split">
+                        <button type="button" className="btn-link-secondary step-backButton" onClick={() => handleStepBack('resume')}>
+                          Back
+                        </button>
+                        <button type="button" className="btn btn-primary" onClick={() => handleStepContinue('resume')}>
+                          <span>Continue to verification</span>
+                          <Icon className="btn-icon" name="arrowRight" />
+                        </button>
+                      </div>
                       </section>
+                      ) : null}
 
+                      {visibleStep === 'verify' ? (
                       <section
                         ref={verifyStepRef}
-                        className={`form-step-block ${verificationReady ? 'is-complete' : ''} ${currentStep === 'verify' ? 'is-current' : ''}`}
+                        className={`form-step-block ${verificationReady ? 'is-complete' : ''} ${visibleStep === 'verify' ? 'is-current' : ''}`}
                         aria-labelledby="apply-step-verify"
                       >
                         <div className="form-step-header">
@@ -1651,8 +1831,8 @@ function App() {
                             <h3 id="apply-step-verify">Consent and verification</h3>
                             <p>Confirm consent and finish the secure verification before final submission.</p>
                           </div>
-                          <span className={`form-step-state ${verificationReady ? 'complete' : currentStep === 'verify' ? 'current' : ''}`}>
-                            {verificationReady ? 'Ready' : currentStep === 'verify' ? 'In progress' : 'Pending'}
+                          <span className={`form-step-state ${verificationReady ? 'complete' : visibleStep === 'verify' ? 'current' : ''}`}>
+                            {verificationReady ? 'Ready' : visibleStep === 'verify' ? 'In progress' : 'Pending'}
                           </span>
                         </div>
 
@@ -1688,13 +1868,19 @@ function App() {
                         <p className={`verification-note verification-${turnstileStatus}`}>{verificationMessage}</p>
                       </div>
 
-                      <button type="submit" className="btn btn-primary" id="btn-submit" disabled={submitDisabled}>
-                        {!isSubmitting ? <Icon className="btn-icon" name="send" /> : <span className="spinner" aria-hidden="true" />}
-                        <span id="btn-text">{buttonText}</span>
-                      </button>
+                      <div className="step-actions step-actions-split">
+                        <button type="button" className="btn-link-secondary step-backButton" onClick={() => handleStepBack('verify')} disabled={isSubmitting}>
+                          Back
+                        </button>
+                        <button type="submit" className="btn btn-primary" id="btn-submit" disabled={submitDisabled}>
+                          {!isSubmitting ? <Icon className="btn-icon" name="send" /> : <span className="spinner" aria-hidden="true" />}
+                          <span id="btn-text">{buttonText}</span>
+                        </button>
+                      </div>
 
                       <p className="form-footnote">Submit your CV and contact details only once for the same role. Verification must be completed before submission.</p>
                       </section>
+                      ) : null}
                     </form>
                   </div>
                 ) : (
