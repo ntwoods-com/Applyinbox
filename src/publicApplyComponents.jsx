@@ -11,14 +11,18 @@ export function ScreeningQuestionsSection({
   if (!Array.isArray(questions) || questions.length === 0) return null;
 
   return (
-    <>
-      <div className="form-section-title">Role screening</div>
+    <section className="screening-section" aria-labelledby="screening-section-title">
+      <div className="form-section-title" id="screening-section-title">Role screening</div>
+      <p className="screening-section-note">
+        Answer only the questions shown for your selected role. Required responses must be completed before final submission.
+      </p>
       <div className="screening-grid">
         {questions.map((question) => {
           const questionId = String(question?.id || '').trim();
           const answer = answers[questionId] || '';
           const error = errors[questionId] || '';
           const type = String(question?.type || 'text').toLowerCase();
+          const prompt = String(question?.question || question?.label || '').trim();
           const legacyOptions = Array.isArray(question?.options) ? question.options : [];
           const options =
             type === 'yes_no' && legacyOptions.length === 0
@@ -28,7 +32,7 @@ export function ScreeningQuestionsSection({
           return (
             <div className="form-group screening-card" key={questionId}>
               <label className={question?.required ? 'required' : ''} htmlFor={`screening-${questionId}`}>
-                {question.question}
+                {prompt || 'Screening question'}
               </label>
               {type === 'textarea' ? (
                 <textarea
@@ -70,6 +74,7 @@ export function ScreeningQuestionsSection({
                 <input
                   id={`screening-${questionId}`}
                   type={type === 'number' ? 'number' : 'text'}
+                  inputMode={type === 'number' ? 'decimal' : undefined}
                   placeholder={question?.placeholder || 'Enter your answer'}
                   value={answer}
                   aria-invalid={Boolean(error)}
@@ -81,7 +86,7 @@ export function ScreeningQuestionsSection({
           );
         })}
       </div>
-    </>
+    </section>
   );
 }
 
@@ -90,6 +95,7 @@ export function ResumePreviewCard({
   fileSizeText = '',
   pdfPreviewUrl = '',
   onChangeFile,
+  onRemoveFile,
 }) {
   if (!file) return null;
 
@@ -100,9 +106,16 @@ export function ResumePreviewCard({
           <strong>{file.name}</strong>
           <span>{fileSizeText || 'Ready'} | {fileTypeLabel(file)}</span>
         </div>
-        <button type="button" className="job-card-link" onClick={onChangeFile}>
-          Change file
-        </button>
+        <div className="resume-preview-actions">
+          <button type="button" className="job-card-link" onClick={onChangeFile}>
+            Change file
+          </button>
+          {typeof onRemoveFile === 'function' ? (
+            <button type="button" className="job-card-link danger" onClick={onRemoveFile}>
+              Remove file
+            </button>
+          ) : null}
+        </div>
       </div>
       {pdfPreviewUrl ? (
         <iframe className="resume-preview-frame" src={pdfPreviewUrl} title="Resume preview" />
@@ -138,7 +151,7 @@ export function JobDetailsModal({
             ) : null}
           </div>
           <button type="button" className="job-modal-close" onClick={onClose} aria-label="Close job details">
-            X
+            &times;
           </button>
         </div>
 

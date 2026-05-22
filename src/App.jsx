@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE, TURNSTILE_SITE_KEY } from './config.js';
 import {
   fileTypeLabel,
@@ -209,6 +209,22 @@ function Icon({ name, className = '', title }) {
           <path d="M8.5 11V8.5a3.5 3.5 0 1 1 7 0V11" />
         </svg>
       );
+    case 'search':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+      );
+    case 'send':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="m22 2-7 20-4-9-9-4Z" />
+          <path d="M22 2 11 13" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -414,7 +430,12 @@ function App() {
   const alertRef = useRef(null);
   const hpRef = useRef(null);
   const applicationCardRef = useRef(null);
+  const nameInputRef = useRef(null);
   const positionInputRef = useRef(null);
+  const contactStepRef = useRef(null);
+  const roleStepRef = useRef(null);
+  const resumeStepRef = useRef(null);
+  const verifyStepRef = useRef(null);
   const sourceTextRef = useRef(getSourceText());
   const sessionTokenRef = useRef(generateToken());
   const formLoadTimeRef = useRef(Date.now());
@@ -425,7 +446,10 @@ function App() {
     ? [{ value: '', label: 'Select a position', requirementId: '', dynamic: false }, ...dynamicJobs]
     : fallbackPositionOptions;
   const selectedPosition = positionOptions.find((option) => option.value === form.position) || null;
-  const activeScreeningQuestions = Array.isArray(selectedPosition?.screeningQuestions) ? selectedPosition.screeningQuestions : [];
+  const activeScreeningQuestions = useMemo(
+    () => (Array.isArray(selectedPosition?.screeningQuestions) ? selectedPosition.screeningQuestions : []),
+    [selectedPosition]
+  );
   const availableRoleCount = positionOptions.filter((option) => option.value).length;
   const totalDynamicOpenings = usingDynamicJobs
     ? dynamicJobs.reduce((sum, option) => sum + Math.max(0, Number(option.openingCount || 0)), 0)
@@ -620,8 +644,8 @@ function App() {
 
   useEffect(() => {
     if (!activeScreeningQuestions.length) {
-      setScreeningAnswers({});
-      setScreeningErrors({});
+      setScreeningAnswers((current) => (Object.keys(current || {}).length ? {} : current));
+      setScreeningErrors((current) => (Object.keys(current || {}).length ? {} : current));
       return;
     }
     const validIds = new Set(activeScreeningQuestions.map((question) => String(question?.id || '').trim()).filter(Boolean));
@@ -630,22 +654,55 @@ function App() {
       for (const [key, value] of Object.entries(current || {})) {
         if (validIds.has(key)) next[key] = value;
       }
-      return next;
+      return Object.keys(next).length === Object.keys(current || {}).length &&
+        Object.entries(next).every(([key, value]) => current?.[key] === value)
+        ? current
+        : next;
     });
     setScreeningErrors((current) => {
       const next = {};
       for (const [key, value] of Object.entries(current || {})) {
         if (validIds.has(key)) next[key] = value;
       }
-      return next;
+      return Object.keys(next).length === Object.keys(current || {}).length &&
+        Object.entries(next).every(([key, value]) => current?.[key] === value)
+        ? current
+        : next;
     });
   }, [activeScreeningQuestions]);
 
-  function showError(message) {
+  function stepRefFor(stepKey) {
+    if (stepKey === 'contact') return contactStepRef.current;
+    if (stepKey === 'role') return roleStepRef.current;
+    if (stepKey === 'resume') return resumeStepRef.current;
+    if (stepKey === 'verify') return verifyStepRef.current;
+    return applicationCardRef.current;
+  }
+
+  function focusStep(stepKey) {
+    const target = stepRefFor(stepKey);
+    window.requestAnimationFrame(() => {
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (stepKey === 'contact') {
+        nameInputRef.current?.focus();
+      } else if (stepKey === 'role') {
+        positionInputRef.current?.focus();
+      } else if (stepKey === 'resume') {
+        fileInputRef.current?.click();
+      } else if (stepKey === 'verify') {
+        turnstileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+
+  function showError(message, stepKey = '') {
     setAlert({ type: 'error', message });
 
     window.requestAnimationFrame(() => {
       alertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (stepKey) {
+        window.setTimeout(() => focusStep(stepKey), 120);
+      }
     });
   }
 
@@ -780,34 +837,38 @@ function App() {
     const positionValid = validateField('position');
 
     if (hpRef.current?.value) {
-      return { ok: false, silent: true, message: 'Submission blocked.' };
+      return { ok: false, silent: true, message: 'Submission blocked.', stepKey: 'contact' };
     }
 
     if (Date.now() - formLoadTimeRef.current < 3000) {
-      return { ok: false, message: 'Please take a moment to review the form before submitting.' };
+      return { ok: false, message: 'Please take a moment to review the form before submitting.', stepKey: 'contact' };
     }
 
     if (!nameValid || !emailValid || !mobileValid || !locationValid || !positionValid) {
-      return { ok: false, message: 'Please fix the highlighted fields.' };
+      return {
+        ok: false,
+        message: 'Please fix the highlighted fields.',
+        stepKey: !nameValid || !emailValid || !mobileValid || !locationValid ? 'contact' : 'role',
+      };
     }
 
     const fileValidation = validateFile(selectedFile);
     if (!fileValidation.ok) {
-      return { ok: false, message: fileValidation.message };
+      return { ok: false, message: fileValidation.message, stepKey: 'resume' };
     }
 
     const nextScreeningErrors = validateScreeningAnswers(activeScreeningQuestions, screeningAnswers);
     setScreeningErrors(nextScreeningErrors);
     if (Object.keys(nextScreeningErrors).length > 0) {
-      return { ok: false, message: 'Please answer the required screening questions.' };
+      return { ok: false, message: 'Please answer the required screening questions.', stepKey: 'role' };
     }
 
     if (!form.consent) {
-      return { ok: false, message: 'Please confirm the recruitment consent before submitting.' };
+      return { ok: false, message: 'Please confirm the recruitment consent before submitting.', stepKey: 'verify' };
     }
 
     if (!turnstileToken) {
-      return { ok: false, message: 'Complete the verification section before submitting the application.' };
+      return { ok: false, message: 'Complete the verification section before submitting the application.', stepKey: 'verify' };
     }
 
     return { ok: true };
@@ -822,7 +883,7 @@ function App() {
     const validationResult = validateFormBeforeSubmit();
     if (!validationResult.ok) {
       if (!validationResult.silent) {
-        showError(validationResult.message);
+        showError(validationResult.message, validationResult.stepKey);
       }
       return;
     }
@@ -1026,14 +1087,26 @@ function App() {
   const submitDisabled = isSubmitting || turnstileStatus === 'loading';
   const consentInvalid = submitAttempted && !form.consent;
   const verificationInvalid = submitAttempted && !turnstileToken;
-  const detailsReady = validateValue('name', form.name) && validateValue('email', form.email);
-  const roleReady = positionOptions.some((option) => option.value && option.value === form.position) && Boolean(selectedFile) && !fileError;
+  const detailsReady =
+    validateValue('name', form.name) &&
+    validateValue('email', form.email) &&
+    validateValue('mobile', form.mobile) &&
+    validateValue('location', form.location);
+  const screeningReady = Object.keys(validateScreeningAnswers(activeScreeningQuestions, screeningAnswers)).length === 0;
+  const roleReady = positionOptions.some((option) => option.value && option.value === form.position) && screeningReady;
+  const resumeReady = Boolean(selectedFile) && !fileError;
   const verificationReady = Boolean(form.consent) && Boolean(turnstileToken);
+  const currentStep =
+    !detailsReady ? 'contact' :
+      !roleReady ? 'role' :
+        !resumeReady ? 'resume' :
+          !verificationReady ? 'verify' : 'done';
 
   const checklistItems = [
-    ['Contact details', 'Name and email are required.', detailsReady],
-    ['Role and resume', 'Choose a role and upload a supported CV.', roleReady],
-    ['Consent and verify', 'Confirm consent and complete the secure check.', verificationReady],
+    ['Step 1', 'Contact details', 'Name, email, and optional contact details.', detailsReady, 'contact'],
+    ['Step 2', 'Role and screening', 'Select an active role and complete any required pre-screening.', roleReady, 'role'],
+    ['Step 3', 'Resume upload', 'Attach a supported PDF, DOC, or DOCX file.', resumeReady, 'resume'],
+    ['Step 4', 'Consent and verify', 'Confirm consent and complete the secure check.', verificationReady, 'verify'],
   ];
 
   const verificationLabel =
@@ -1097,8 +1170,7 @@ function App() {
           </nav>
 
           <a className="nav-cta" href="#application">
-            Apply Now
-            <Icon className="icon-inline" name="arrowRight" />
+            <Icon className="icon-inline" name="send" /> Apply Now
           </a>
         </div>
       </header>
@@ -1120,8 +1192,7 @@ function App() {
 
               <div className="hero-actions">
                 <a className="btn-link-primary" href="#application">
-                  Start Application
-                  <Icon className="icon-inline" name="arrowRight" />
+                  <Icon className="icon-inline" name="send" /> Start Application
                 </a>
                 <a className="btn-link-secondary" href="#process">View Process</a>
               </div>
@@ -1208,16 +1279,22 @@ function App() {
                         </span>
                       </div>
                       <div className="progress-grid" aria-label="Application readiness">
-                        {checklistItems.map(([title, note, ready]) => (
-                          <div className={`progress-card ${ready ? 'complete' : ''}`} key={title}>
+                        {checklistItems.map(([step, title, note, ready, stepKey]) => (
+                          <button
+                            type="button"
+                            className={`progress-card ${ready ? 'complete' : ''} ${currentStep === stepKey ? 'current' : ''}`}
+                            key={title}
+                            onClick={() => focusStep(stepKey)}
+                          >
                             <span className="progress-icon" aria-hidden="true">
-                              <Icon className="icon-inline" name={ready ? 'checkCircle' : 'briefcase'} />
+                              <Icon className="icon-inline" name={ready ? 'checkCircle' : currentStep === stepKey ? 'arrowRight' : 'briefcase'} />
                             </span>
                             <div>
+                              <small className="progress-stepLabel">{step}</small>
                               <strong>{title}</strong>
                               <span>{note}</span>
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                       {usingDynamicJobs ? (
@@ -1240,10 +1317,10 @@ function App() {
                                 </div>
                                 <div className="job-card-actions">
                                   <button type="button" className="job-card-link" onClick={() => setActiveJobModal(job)}>
-                                    View Details
+                                    <Icon className="icon-inline" name="search" /> View Details
                                   </button>
                                   <button type="button" className="job-card-apply" onClick={() => focusApplicationForm(job.value)}>
-                                    Apply Now
+                                    <Icon className="icon-inline" name="send" /> Apply Now
                                   </button>
                                 </div>
                               </article>
@@ -1261,7 +1338,21 @@ function App() {
                       <input type="hidden" id="_timestamp" name="_timestamp" value={formLoadTimeRef.current} readOnly />
                       <input type="hidden" id="_token" name="_token" value={sessionTokenRef.current} readOnly />
 
-                      <div className="form-section-title">Personal details</div>
+                      <section
+                        ref={contactStepRef}
+                        className={`form-step-block ${detailsReady ? 'is-complete' : ''} ${currentStep === 'contact' ? 'is-current' : ''}`}
+                        aria-labelledby="apply-step-contact"
+                      >
+                        <div className="form-step-header">
+                          <div>
+                            <div className="form-step-kicker">Step 1</div>
+                            <h3 id="apply-step-contact">Personal details</h3>
+                            <p>Enter the contact details HR should use for your application review.</p>
+                          </div>
+                          <span className={`form-step-state ${detailsReady ? 'complete' : currentStep === 'contact' ? 'current' : ''}`}>
+                            {detailsReady ? 'Ready' : currentStep === 'contact' ? 'In progress' : 'Pending'}
+                          </span>
+                        </div>
 
                       <div className="form-group">
                         <label className="required" htmlFor="name">
@@ -1270,6 +1361,7 @@ function App() {
                         </label>
                         <div className="input-wrapper">
                           <input
+                            ref={nameInputRef}
                             className={fieldClass(validation.name, form.name)}
                             type="text"
                             id="name"
@@ -1368,8 +1460,23 @@ function App() {
                           {locationError ? <div className="field-error-note" id="location-error">{locationError}</div> : null}
                         </div>
                       </div>
+                      </section>
 
-                      <div className="form-section-title">Role preference</div>
+                      <section
+                        ref={roleStepRef}
+                        className={`form-step-block ${roleReady ? 'is-complete' : ''} ${currentStep === 'role' ? 'is-current' : ''}`}
+                        aria-labelledby="apply-step-role"
+                      >
+                        <div className="form-step-header">
+                          <div>
+                            <div className="form-step-kicker">Step 2</div>
+                            <h3 id="apply-step-role">Role preference</h3>
+                            <p>Select the position you want to apply for. Role-specific questions appear only when needed.</p>
+                          </div>
+                          <span className={`form-step-state ${roleReady ? 'complete' : currentStep === 'role' ? 'current' : ''}`}>
+                            {roleReady ? 'Ready' : currentStep === 'role' ? 'In progress' : 'Pending'}
+                          </span>
+                        </div>
 
                       <div className="form-row">
                         <div className="form-group">
@@ -1424,8 +1531,26 @@ function App() {
                         errors={screeningErrors}
                         onAnswerChange={updateScreeningAnswer}
                       />
+                      {selectedPosition?.dynamic && activeScreeningQuestions.length === 0 ? (
+                        <p className="screening-section-empty">No pre-screening questions are required for this role right now.</p>
+                      ) : null}
+                      </section>
 
-                      <div className="form-section-title">Resume upload</div>
+                      <section
+                        ref={resumeStepRef}
+                        className={`form-step-block ${resumeReady ? 'is-complete' : ''} ${currentStep === 'resume' ? 'is-current' : ''}`}
+                        aria-labelledby="apply-step-resume"
+                      >
+                        <div className="form-step-header">
+                          <div>
+                            <div className="form-step-kicker">Step 3</div>
+                            <h3 id="apply-step-resume">Resume upload</h3>
+                            <p>Upload your latest CV. PDF gives the best preview experience before submission.</p>
+                          </div>
+                          <span className={`form-step-state ${resumeReady ? 'complete' : currentStep === 'resume' ? 'current' : ''}`}>
+                            {resumeReady ? 'Ready' : currentStep === 'resume' ? 'In progress' : 'Pending'}
+                          </span>
+                        </div>
 
                       <div className="form-group file-input">
                         <label className="required" htmlFor="cv">
@@ -1510,8 +1635,26 @@ function App() {
                           fileSizeText={fileSizeText}
                           pdfPreviewUrl={pdfPreviewUrl}
                           onChangeFile={() => fileInputRef.current?.click()}
+                          onRemoveFile={resetFileInput}
                         />
                       </div>
+                      </section>
+
+                      <section
+                        ref={verifyStepRef}
+                        className={`form-step-block ${verificationReady ? 'is-complete' : ''} ${currentStep === 'verify' ? 'is-current' : ''}`}
+                        aria-labelledby="apply-step-verify"
+                      >
+                        <div className="form-step-header">
+                          <div>
+                            <div className="form-step-kicker">Step 4</div>
+                            <h3 id="apply-step-verify">Consent and verification</h3>
+                            <p>Confirm consent and finish the secure verification before final submission.</p>
+                          </div>
+                          <span className={`form-step-state ${verificationReady ? 'complete' : currentStep === 'verify' ? 'current' : ''}`}>
+                            {verificationReady ? 'Ready' : currentStep === 'verify' ? 'In progress' : 'Pending'}
+                          </span>
+                        </div>
 
                       <div className={`consent-card ${consentInvalid ? 'invalid' : ''}`}>
                         <input
@@ -1546,11 +1689,12 @@ function App() {
                       </div>
 
                       <button type="submit" className="btn btn-primary" id="btn-submit" disabled={submitDisabled}>
+                        {!isSubmitting ? <Icon className="btn-icon" name="send" /> : <span className="spinner" aria-hidden="true" />}
                         <span id="btn-text">{buttonText}</span>
-                        {!isSubmitting ? <Icon className="btn-icon" name="arrowRight" /> : <span className="spinner" aria-hidden="true" />}
                       </button>
 
                       <p className="form-footnote">Submit your CV and contact details only once for the same role. Verification must be completed before submission.</p>
+                      </section>
                     </form>
                   </div>
                 ) : (
@@ -1733,8 +1877,8 @@ function App() {
 
                 <div className="status-check-actions">
                   <button type="submit" className="btn btn-primary" disabled={statusLoading}>
+                    {!statusLoading ? <Icon className="btn-icon" name="search" /> : <span className="spinner" aria-hidden="true" />}
                     <span>{statusLoading ? 'Checking Status...' : 'Check Status'}</span>
-                    {!statusLoading ? <Icon className="btn-icon" name="arrowRight" /> : <span className="spinner" aria-hidden="true" />}
                   </button>
                 </div>
               </form>
