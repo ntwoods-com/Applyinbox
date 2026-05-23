@@ -148,6 +148,28 @@ describe('Applyinbox candidate journey', () => {
     expect(screen.queryByRole('heading', { name: 'Personal details' })).toBeNull();
   });
 
+  it('renders Turnstile only after the verification step is opened', async () => {
+    global.fetch = buildFetchMock({
+      jobs: [],
+    });
+
+    render(<App />);
+
+    expect(window.turnstile.render).not.toHaveBeenCalled();
+
+    await completeContactStep();
+    fireEvent.change(screen.getByLabelText(/Position Applying For/i), { target: { value: 'ACC-001' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continue to resume upload/i }));
+    selectFile(screen.getByLabelText(/Resume \/ CV/i), new File(['pdf'], 'resume.pdf', { type: 'application/pdf' }));
+    expect(window.turnstile.render).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Continue to verification/i }));
+
+    await waitFor(() => {
+      expect(window.turnstile.render).toHaveBeenCalled();
+    });
+    expect(screen.getByRole('heading', { name: 'Consent and verification' })).toBeTruthy();
+  });
+
   it('opens job details and Apply Now selects the matching live role', async () => {
     global.fetch = buildFetchMock({
       jobs: [

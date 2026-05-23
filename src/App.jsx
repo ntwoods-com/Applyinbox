@@ -498,8 +498,21 @@ function App() {
   ];
 
   useEffect(() => {
+    const verificationStepActive = pageView === 'apply' && visibleStep === 'verify';
+
+    if (!verificationStepActive) {
+      return undefined;
+    }
+
+    if (!TURNSTILE_SITE_KEY) {
+      setTurnstileToken('');
+      setTurnstileStatus('error');
+      return undefined;
+    }
+
     let cancelled = false;
     let checks = 0;
+    setTurnstileStatus('loading');
 
     const renderTurnstile = () => {
       if (cancelled || !turnstileRef.current || !window.turnstile || turnstileWidgetIdRef.current) {
@@ -561,7 +574,14 @@ function App() {
 
       turnstileWidgetIdRef.current = null;
     };
-  }, []);
+  }, [pageView, visibleStep]);
+
+  useEffect(() => {
+    const verificationStepActive = pageView === 'apply' && visibleStep === 'verify';
+    if (verificationStepActive) return;
+    setTurnstileToken('');
+    setTurnstileStatus('loading');
+  }, [pageView, visibleStep]);
 
   useEffect(() => {
     const handleHashChange = () => {
