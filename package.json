@@ -8,7 +8,8 @@
     "verify:config": "node scripts/verify-runtime-config.mjs",
     "test": "vitest run",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "doctor": "react-doctor"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
     "jsdom": "^26.1.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "react-doctor": "^0.2.6"
   }
 }

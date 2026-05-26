@@ -7,11 +7,9 @@ import {
   mapPublicApplyError,
   validateScreeningAnswers,
 } from './publicApplyUi.js';
-import {
-  JobDetailsModal,
-  ResumePreviewCard,
-  ScreeningQuestionsSection,
-} from './publicApplyComponents.jsx';
+import { ScreeningQuestionsSection } from './publicApplyComponents.jsx';
+import { JobDetailsModal } from './JobDetailsModal.jsx';
+import { ResumePreviewCard } from './ResumePreviewCard.jsx';
 
 const DRAFT_KEY = 'ntw_careers_apply_draft_v1';
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -22,16 +20,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
-
-const initialForm = {
-  name: '',
-  email: '',
-  mobile: '',
-  location: '',
-  position: '',
-  experience: '',
-  consent: false,
-};
 
 const roleCards = [
   ['Accounts & Admin', 'Accounting, office coordination and operations support.'],
@@ -96,7 +84,9 @@ const fallbackPositionOptions = fallbackPositions.map(([value, label]) => ({
   requirementId: '',
   dynamic: false,
 }));
-const VALID_EXPERIENCE = new Set(experienceOptions.map(([value]) => value).filter(Boolean));
+const VALID_EXPERIENCE = new Set(
+  experienceOptions.flatMap(([value]) => (value ? [value] : []))
+);
 
 function Icon({ name, className = '', title }) {
   const sharedProps = {
@@ -248,16 +238,6 @@ function generateToken() {
   return `tkn_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function getDraft() {
-  try {
-    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-    return { ...initialForm, ...draft, consent: false };
-  } catch {
-    sessionStorage.removeItem(DRAFT_KEY);
-    return initialForm;
-  }
-}
-
 function normalizeSourceValue(value) {
   const normalized = String(value || '')
     .trim()
@@ -402,44 +382,362 @@ async function fetchWithTimeout(url, options, timeoutMs = 20000) {
   }
 }
 
+let globalTurnstileWidgetId = null;
+
+function FileDropzone({
+  selectedFile,
+  dragging,
+  setDragging,
+  handleFile,
+  fileInputRef,
+  resetFileInput,
+  fileError,
+  fileSizeText,
+  pdfPreviewUrl,
+}) {
+  const preventDefaults = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  return (
+    <div className="field-group">
+      <div
+        className={`file-dropzone ${dragging ? 'drag-active' : ''}`}
+        onDragEnter={(event) => {
+          preventDefaults(event);
+          setDragging(true);
+        }}
+        onDragOver={(event) => {
+          preventDefaults(event);
+          setDragging(true);
+        }}
+        onDragLeave={(event) => {
+          preventDefaults(event);
+          setDragging(false);
+        }}
+        onDrop={(event) => {
+          preventDefaults(event);
+          setDragging(false);
+          const file = event.dataTransfer.files?.[0];
+          if (file) {
+            handleFile(file);
+          }
+        }}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          id="cv"
+          accept=".pdf,.doc,.docx"
+          required
+          aria-label="Resume"
+          aria-describedby="file-help"
+          onChange={(event) => handleFile(event.target.files?.[0])}
+        />
+        <label
+          className={`file-label ${selectedFile ? 'has-file' : ''} ${dragging ? 'dragging' : ''}`}
+          htmlFor="cv"
+        >
+          <div className="file-icon" aria-hidden="true">
+            <Icon className="icon-lg" name="file" />
+          </div>
+          <div className="file-text">
+            <div className="main" id="file-name">{selectedFile ? selectedFile.name : 'Choose your CV or drag and drop it here'}</div>
+            <div className="sub" id="file-help">
+              {selectedFile ? (
+                <>
+                  <span className="file-size">{fileSizeText}</span>
+                  <span className="file-meta-separator">{fileTypeLabel(selectedFile)}</span>
+                </>
+              ) : (
+                'PDF, DOC, DOCX accepted | maximum 2MB'
+              )}
+            </div>
+          </div>
+        </label>
+        <button
+          type="button"
+          className={`remove-file ${selectedFile ? '' : 'hidden'}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            resetFileInput();
+          }}
+        >
+          Remove
+        </button>
+      </div>
+      {fileError ? <div className="field-error-note">{fileError}</div> : null}
+      <ResumePreviewCard
+        file={selectedFile}
+        fileSizeText={fileSizeText}
+        pdfPreviewUrl={pdfPreviewUrl}
+        onChangeFile={() => fileInputRef.current?.click()}
+        onRemoveFile={resetFileInput}
+      />
+    </div>
+  );
+}
+
+function StatusCheckSection() {
+  const [statusState, setStatusState] = useState({
+    form: { applyId: '', email: '' },
+    loading: false,
+    error: '',
+    result: null,
+  });
+
+  const { form: statusForm, loading: statusLoading, error: statusError, result: statusResult } = statusState;
+
+  function updateStatusField(field, value) {
+    setStatusState((prev) => ({
+      ...prev,
+      form: { ...prev.form, [field]: field === 'email' ? String(value || '').trim() : String(value || '').trim() },
+      error: '',
+      result: null,
+    }));
+  }
+
+  async function handleStatusCheck(event) {
+    event.preventDefault();
+    if (statusState.loading) return;
+
+    const applyId = String(statusState.form.applyId || '').trim();
+    const email = String(statusState.form.email || '').trim().toLowerCase();
+
+    if (!applyId || !validateValue('email', email)) {
+      setStatusState((prev) => ({ ...prev, error: 'Please enter the Application ID and the same email used for the application.' }));
+      return;
+    }
+
+    try {
+      setStatusState((prev) => ({ ...prev, loading: true, error: '', result: null }));
+      const response = await fetchWithTimeout(`${API_BASE}/v1/apply/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          apply_id: applyId,
+          email: email,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 429) {
+        throw new Error(mapPublicApplyError({ status: response.status, payload }));
+      }
+      if (!response.ok || !payload?.success) {
+        setStatusState((prev) => ({ ...prev, error: 'We could not verify those application details. Please check the Application ID and email.' }));
+        return;
+      }
+
+      setStatusState((prev) => ({
+        ...prev,
+        result: {
+          applyId: payload.apply_id,
+          statusLabel: payload.status_label,
+          positionTitle: payload.position_title,
+          appliedAt: payload.applied_at,
+          source: payload.source,
+        },
+      }));
+    } catch (error) {
+      setStatusState((prev) => ({ ...prev, error: error?.message || 'Unable to check application status right now.' }));
+    } finally {
+      setStatusState((prev) => ({ ...prev, loading: false }));
+    }
+  }
+
+  return (
+    <section className="section" id="status-check" aria-labelledby="status-check-title">
+      <div className="page-shell">
+        <div className="section-header">
+          <h2 id="status-check-title">Check Application Status</h2>
+          <p>Use your Application ID and the same email you submitted with. This shows only the public application status.</p>
+        </div>
+        <div className="status-check-card">
+          <form className="status-check-form" onSubmit={handleStatusCheck}>
+            <div className="status-check-grid">
+              <label className="form-group">
+                <span className="required">Application ID</span>
+                <input
+                  type="text"
+                  value={statusForm.applyId}
+                  placeholder="PA-2026-XXXXXXX"
+                  aria-label="Application ID"
+                  onChange={(event) => updateStatusField('applyId', event.target.value)}
+                />
+              </label>
+              <label className="form-group">
+                <span className="required">Email Address</span>
+                <input
+                  type="email"
+                  value={statusForm.email}
+                  placeholder="your.email@example.com"
+                  aria-label="Email Address"
+                  onChange={(event) => updateStatusField('email', event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="status-check-actions">
+              <button type="submit" className="btn btn-primary" disabled={statusLoading}>
+                {!statusLoading ? <Icon className="btn-icon" name="search" /> : <span className="spinner" aria-hidden="true" />}
+                <span>{statusLoading ? 'Checking Status...' : 'Check Status'}</span>
+              </button>
+            </div>
+          </form>
+          {statusError ? <div className="status-check-error" role="alert">{statusError}</div> : null}
+          {statusResult ? (
+            <div className="status-result" aria-live="polite">
+              <div className="status-result-label">{statusResult.statusLabel}</div>
+              <div className="status-result-meta">
+                <div className="status-meta-item">
+                  <span>Application ID</span>
+                  <strong>{statusResult.applyId}</strong>
+                </div>
+                <div className="status-meta-item">
+                  <span>Position</span>
+                  <strong>{statusResult.positionTitle || '-'}</strong>
+                </div>
+                <div className="status-meta-item">
+                  <span>Applied At</span>
+                  <strong>{statusResult.appliedAt || '-'}</strong>
+                </div>
+                {statusResult.source ? (
+                  <div className="status-meta-item">
+                    <span>Source</span>
+                    <strong>{statusResult.source}</strong>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WhyApplySection() {
+  return (
+    <section className="section" aria-labelledby="why-title">
+      <div className="page-shell">
+        <div className="section-header">
+          <h2 id="why-title">Why apply through this portal?</h2>
+          <p>We keep the application flow simple, organized and protected so that candidate details can move quickly to the right HR review stage.</p>
+        </div>
+        <div className="benefit-grid">
+          {benefits.map(([num, title, description]) => (
+            <article className="benefit-card" key={title}>
+              <div className="benefit-icon" aria-hidden="true">{num}</div>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProcessSection() {
+  return (
+    <section className="section" id="process" aria-labelledby="process-title">
+      <div className="page-shell">
+        <div className="section-header">
+          <h2 id="process-title">Hiring process</h2>
+          <p>The actual steps may vary by role, but this gives candidates a simple view of the expected journey.</p>
+        </div>
+        <div className="process-grid">
+          {processSteps.map(([step, title, description]) => (
+            <article className="process-card" key={step}>
+              <div className="process-step">{step}</div>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FAQSection() {
+  return (
+    <section className="section" id="faq" aria-labelledby="faq-title">
+      <div className="page-shell">
+        <div className="section-header">
+          <h2 id="faq-title">Quick FAQ</h2>
+          <p>Keep your CV updated and ensure your email and mobile number are correct before submitting the form.</p>
+        </div>
+        <div className="faq-panel">
+          {faqItems.map(([question, answer]) => (
+            <div className="faq-item" key={question}>
+              <strong>{question}</strong>
+              <span>{answer}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function App() {
-  const [form, setForm] = useState(getDraft);
+  const [form, setForm] = useState(() => {
+    const initialState = {
+      name: '',
+      email: '',
+      mobile: '',
+      location: '',
+      position: '',
+      experience: '',
+      consent: false,
+    };
+    try {
+      if (typeof window !== 'undefined') {
+        const draft = window.sessionStorage.getItem(DRAFT_KEY);
+        if (draft) {
+          const parsed = JSON.parse(draft);
+          return { ...initialState, ...parsed };
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return initialState;
+  });
   const [validation, setValidation] = useState({});
   const [alert, setAlert] = useState(null);
-  const [dynamicJobs, setDynamicJobs] = useState([]);
+  const [dynamicJobs, setDynamicJobs] = useState();
   const [publicConfig, setPublicConfig] = useState({ whatsapp_enabled: false, whatsapp_number: '' });
-  const [turnstileToken, setTurnstileToken] = useState('');
-  const [turnstileStatus, setTurnstileStatus] = useState('loading');
+  const [turnstile, setTurnstile] = useState({ token: '', status: 'loading' });
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState('');
   const [dragging, setDragging] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [buttonText, setButtonText] = useState('Submit Application');
-  const [successApplyId, setSuccessApplyId] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState('');
-  const [submittedContext, setSubmittedContext] = useState({
-    name: '',
-    mobile: '',
-    positionTitle: '',
-    sourceDisplay: '',
+  const [submitState, setSubmitState] = useState({
+    isSubmitting: false,
+    buttonText: 'Submit Application',
+    successApplyId: null,
+    submitted: false,
+    submitAttempted: false,
+    copyFeedback: '',
+    submittedContext: {},
   });
-  const [statusForm, setStatusForm] = useState({ applyId: '', email: '' });
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [statusError, setStatusError] = useState('');
-  const [statusResult, setStatusResult] = useState(null);
+
   const [activeJobModal, setActiveJobModal] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
   const [screeningAnswers, setScreeningAnswers] = useState({});
   const [screeningErrors, setScreeningErrors] = useState({});
   const [visibleStep, setVisibleStep] = useState('contact');
   const [pageView, setPageView] = useState(() => getPageViewFromHash());
-  const [activeHash, setActiveHash] = useState(() => window.location.hash || '#top');
+
 
   const fileInputRef = useRef(null);
   const turnstileRef = useRef(null);
-  const turnstileWidgetIdRef = useRef(null);
   const alertRef = useRef(null);
   const hpRef = useRef(null);
   const applicationCardRef = useRef(null);
@@ -454,7 +752,7 @@ function App() {
   const formLoadTimeRef = useRef(Date.now());
   const sourceText = sourceTextRef.current;
   const sourceDisplayText = formatSourceLabel(sourceText);
-  const usingDynamicJobs = dynamicJobs.length > 0;
+  const usingDynamicJobs = (dynamicJobs || []).length > 0;
   const positionOptions = usingDynamicJobs
     ? [{ value: '', label: 'Select a position', requirementId: '', dynamic: false }, ...dynamicJobs]
     : fallbackPositionOptions;
@@ -505,44 +803,40 @@ function App() {
     }
 
     if (!TURNSTILE_SITE_KEY) {
-      setTurnstileToken('');
-      setTurnstileStatus('error');
+      setTurnstile({ token: '', status: 'error' });
       return undefined;
     }
 
     let cancelled = false;
     let checks = 0;
-    setTurnstileStatus('loading');
+    setTurnstile((prev) => ({ ...prev, status: 'loading' }));
 
     const renderTurnstile = () => {
-      if (cancelled || !turnstileRef.current || !window.turnstile || turnstileWidgetIdRef.current) {
+      if (cancelled || !turnstileRef.current || !window.turnstile || globalTurnstileWidgetId) {
         return;
       }
 
       try {
-        turnstileWidgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+        globalTurnstileWidgetId = window.turnstile.render(turnstileRef.current, {
           sitekey: TURNSTILE_SITE_KEY,
           size: 'normal',
           theme: 'light',
           callback: (token) => {
-            setTurnstileToken(token || '');
-            setTurnstileStatus(token ? 'verified' : 'ready');
+            setTurnstile({ token: token || '', status: token ? 'verified' : 'ready' });
             setAlert(null);
           },
           'expired-callback': () => {
-            setTurnstileToken('');
-            setTurnstileStatus('expired');
+            setTurnstile({ token: '', status: 'expired' });
             showError('Verification expired. Please complete the secure check again.');
           },
           'error-callback': () => {
-            setTurnstileToken('');
-            setTurnstileStatus('error');
+            setTurnstile({ token: '', status: 'error' });
             showError('Verification could not load correctly. Confirm this domain is allowed in Cloudflare Turnstile settings, then refresh and try again.');
           },
         });
-        setTurnstileStatus('ready');
+        setTurnstile((prev) => ({ ...prev, status: 'ready' }));
       } catch {
-        setTurnstileStatus('error');
+        setTurnstile((prev) => ({ ...prev, status: 'error' }));
       }
     };
 
@@ -552,10 +846,10 @@ function App() {
       checks += 1;
       renderTurnstile();
 
-      if (turnstileWidgetIdRef.current) {
+      if (globalTurnstileWidgetId) {
         window.clearInterval(turnstileWatch);
       } else if (checks >= 30) {
-        setTurnstileStatus('error');
+        setTurnstile((prev) => ({ ...prev, status: 'error' }));
         window.clearInterval(turnstileWatch);
       }
     }, 500);
@@ -564,49 +858,57 @@ function App() {
       cancelled = true;
       window.clearInterval(turnstileWatch);
 
-      if (window.turnstile && turnstileWidgetIdRef.current) {
+      if (window.turnstile && globalTurnstileWidgetId) {
         try {
-          window.turnstile.remove(turnstileWidgetIdRef.current);
+          window.turnstile.remove(globalTurnstileWidgetId);
         } catch {
           // Widget may already be removed by the browser.
         }
       }
 
-      turnstileWidgetIdRef.current = null;
+      globalTurnstileWidgetId = null;
     };
   }, [pageView, visibleStep]);
 
-  useEffect(() => {
-    const verificationStepActive = pageView === 'apply' && visibleStep === 'verify';
-    if (verificationStepActive) return;
-    setTurnstileToken('');
-    setTurnstileStatus('loading');
-  }, [pageView, visibleStep]);
 
   useEffect(() => {
     const handleHashChange = () => {
       const nextHash = window.location.hash || '#top';
-      setActiveHash(nextHash);
-      setPageView(getPageViewFromHash(nextHash));
+      const nextPageView = getPageViewFromHash(nextHash);
+      setPageView(nextPageView);
+
+      if (nextPageView === 'browse') {
+        const targetId = String(nextHash || '').replace(/^#/, '').trim();
+        if (targetId && targetId !== 'top') {
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+              document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          });
+        }
+      }
     };
 
     window.addEventListener('hashchange', handleHashChange);
+    
+    // Initial mount scroll
+    const initialHash = window.location.hash || '#top';
+    const initialPageView = getPageViewFromHash(initialHash);
+    if (initialPageView === 'browse') {
+      const targetId = String(initialHash || '').replace(/^#/, '').trim();
+      if (targetId && targetId !== 'top') {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        });
+      }
+    }
+
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
-
-  useEffect(() => {
-    if (pageView !== 'browse') return;
-    const targetId = String(activeHash || '').replace(/^#/, '').trim();
-    if (!targetId || targetId === 'top') return;
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
-  }, [activeHash, pageView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -617,22 +919,39 @@ function App() {
         if (jobsRes.ok) {
           const jobsData = await jobsRes.json();
           const items = Array.isArray(jobsData?.items) ? jobsData.items : [];
-          const nextJobs = items
-            .map((item) => ({
-              value: String(item?.job_public_code || '').trim(),
-              label: String(item?.position_title || '').trim(),
-              requirementId: String(item?.requirement_id || '').trim(),
-              openingCount: Number(item?.opening_count || 0),
-              location: String(item?.location || '').trim(),
-              experience: String(item?.experience || '').trim(),
-              jobDescription: String(item?.job_description || '').trim(),
-              skills: String(item?.skills || '').trim(),
-              screeningQuestions: Array.isArray(item?.screening_questions) ? item.screening_questions : [],
-              dynamic: true,
-            }))
-            .filter((item) => item.value && item.label);
+          const nextJobs = items.reduce((acc, item) => {
+            const value = String(item?.job_public_code || '').trim();
+            const label = String(item?.position_title || '').trim();
+            if (value && label) {
+              acc.push({
+                value,
+                label,
+                requirementId: String(item?.requirement_id || '').trim(),
+                openingCount: Number(item?.opening_count || 0),
+                location: String(item?.location || '').trim(),
+                experience: String(item?.experience || '').trim(),
+                jobDescription: String(item?.job_description || '').trim(),
+                skills: String(item?.skills || '').trim(),
+                screeningQuestions: Array.isArray(item?.screening_questions) ? item.screening_questions : [],
+                dynamic: true,
+              });
+            }
+            return acc;
+          }, []);
           if (!cancelled && nextJobs.length > 0) {
             setDynamicJobs(nextJobs);
+            setForm((current) => {
+              if (current.position && !nextJobs.some((opt) => opt.value === current.position)) {
+                return { ...current, position: '' };
+              }
+              return current;
+            });
+            setValidation((current) => {
+              if (current.position !== undefined) {
+                 return { ...current, position: undefined };
+              }
+              return current;
+            });
           }
         }
       } catch {
@@ -665,27 +984,13 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    const draft = {};
 
-    ['name', 'email', 'mobile', 'position', 'experience', 'location'].forEach((key) => {
-      if (form[key]) {
-        draft[key] = form[key];
-      }
-    });
-
-    try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // Browser storage may be unavailable. Form still works.
-    }
-  }, [form.email, form.experience, form.location, form.mobile, form.name, form.position]);
 
   useEffect(() => {
-    if (!copyFeedback) return undefined;
-    const timeoutId = window.setTimeout(() => setCopyFeedback(''), 2500);
+    if (!submitState.copyFeedback) return undefined;
+    const timeoutId = window.setTimeout(() => setSubmitState((prev) => ({ ...prev, copyFeedback: '' })), 2500);
     return () => window.clearTimeout(timeoutId);
-  }, [copyFeedback]);
+  }, [submitState.copyFeedback]);
 
   useEffect(() => {
     if (!selectedFile || !isPreviewablePdfFile(selectedFile)) {
@@ -699,42 +1004,7 @@ function App() {
     };
   }, [selectedFile]);
 
-  useEffect(() => {
-    if (!form.position) return;
-    const activeOptions = dynamicJobs.length ? dynamicJobs : fallbackPositionOptions;
-    if (activeOptions.some((option) => option.value && option.value === form.position)) return;
-    setForm((current) => ({ ...current, position: '' }));
-    setValidation((current) => ({ ...current, position: undefined }));
-  }, [dynamicJobs, form.position]);
 
-  useEffect(() => {
-    if (!activeScreeningQuestions.length) {
-      setScreeningAnswers((current) => (Object.keys(current || {}).length ? {} : current));
-      setScreeningErrors((current) => (Object.keys(current || {}).length ? {} : current));
-      return;
-    }
-    const validIds = new Set(activeScreeningQuestions.map((question) => String(question?.id || '').trim()).filter(Boolean));
-    setScreeningAnswers((current) => {
-      const next = {};
-      for (const [key, value] of Object.entries(current || {})) {
-        if (validIds.has(key)) next[key] = value;
-      }
-      return Object.keys(next).length === Object.keys(current || {}).length &&
-        Object.entries(next).every(([key, value]) => current?.[key] === value)
-        ? current
-        : next;
-    });
-    setScreeningErrors((current) => {
-      const next = {};
-      for (const [key, value] of Object.entries(current || {})) {
-        if (validIds.has(key)) next[key] = value;
-      }
-      return Object.keys(next).length === Object.keys(current || {}).length &&
-        Object.entries(next).every(([key, value]) => current?.[key] === value)
-        ? current
-        : next;
-    });
-  }, [activeScreeningQuestions]);
 
   function stepRefFor(stepKey) {
     if (stepKey === 'contact') return contactStepRef.current;
@@ -747,6 +1017,9 @@ function App() {
   function focusStep(stepKey) {
     const normalizedStep = STEP_ORDER.includes(stepKey) ? stepKey : 'contact';
     setVisibleStep(normalizedStep);
+    if (normalizedStep !== 'verify') {
+      setTurnstile({ token: '', status: 'loading' });
+    }
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         const target = stepRefFor(normalizedStep);
@@ -780,8 +1053,10 @@ function App() {
       setValidation((current) => ({ ...current, position: true }));
     }
     setPageView('apply');
-    setActiveHash('#apply-form');
     setVisibleStep(nextStep);
+    if (nextStep !== 'verify') {
+      setTurnstile({ token: '', status: 'loading' });
+    }
     window.history.replaceState(null, '', '#apply-form');
 
     window.requestAnimationFrame(() => {
@@ -802,7 +1077,7 @@ function App() {
     const nextAnchor = String(anchor || 'top').replace(/^#/, '') || 'top';
     const nextHash = `#${nextAnchor}`;
     setPageView('browse');
-    setActiveHash(nextHash);
+    setTurnstile({ token: '', status: 'loading' });
     window.history.replaceState(null, '', nextHash);
 
     window.requestAnimationFrame(() => {
@@ -847,10 +1122,26 @@ function App() {
   function updateField(field, value) {
     const nextValue = sanitizeField(field, value);
 
-    setForm((current) => ({
-      ...current,
-      [field]: nextValue,
-    }));
+    setForm((current) => {
+      const nextForm = {
+        ...current,
+        [field]: nextValue,
+      };
+
+      const draft = {};
+      ['name', 'email', 'mobile', 'position', 'experience', 'location'].forEach((key) => {
+        if (nextForm[key]) {
+          draft[key] = nextForm[key];
+        }
+      });
+      try {
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch {
+        // Browser storage may be unavailable. Form still works.
+      }
+
+      return nextForm;
+    });
     setAlert(null);
 
     if (validation[field] !== undefined) {
@@ -936,11 +1227,10 @@ function App() {
   }
 
   function resetTurnstile() {
-    setTurnstileToken('');
-    setTurnstileStatus('ready');
+    setTurnstile({ token: '', status: 'ready' });
 
-    if (window.turnstile && typeof window.turnstile.reset === 'function' && turnstileWidgetIdRef.current) {
-      window.turnstile.reset(turnstileWidgetIdRef.current);
+    if (window.turnstile && typeof window.turnstile.reset === 'function' && globalTurnstileWidgetId) {
+      window.turnstile.reset(globalTurnstileWidgetId);
     }
   }
 
@@ -982,7 +1272,7 @@ function App() {
       return { ok: false, message: 'Please confirm the recruitment consent before submitting.', stepKey: 'verify' };
     }
 
-    if (!turnstileToken) {
+    if (!turnstile.token) {
       return { ok: false, message: 'Complete the verification section before submitting the application.', stepKey: 'verify' };
     }
 
@@ -1051,7 +1341,7 @@ function App() {
       };
     }
 
-    if (!turnstileToken) {
+    if (!turnstile.token) {
       return {
         ok: false,
         message: 'Complete the verification section before continuing.',
@@ -1080,6 +1370,11 @@ function App() {
       return;
     }
 
+    if (!turnstile.token) {
+      showError('Please complete the security verification before applying.');
+      return;
+    }
+
     const currentIndex = STEP_ORDER.indexOf(stepKey);
     const nextStep = STEP_ORDER[Math.min(currentIndex + 1, STEP_ORDER.length - 1)];
     focusStep(nextStep);
@@ -1094,7 +1389,7 @@ function App() {
   async function handleSubmit(event) {
     event.preventDefault();
     setAlert(null);
-    setSubmitAttempted(true);
+    setSubmitState((prev) => ({ ...prev, submitAttempted: true }));
     let initCompleted = false;
 
     const validationResult = validateFormBeforeSubmit();
@@ -1106,13 +1401,12 @@ function App() {
     }
 
     try {
-      setIsSubmitting(true);
-      setButtonText('Creating application...');
+      setSubmitState((prev) => ({ ...prev, isSubmitting: true, buttonText: 'Creating application...' }));
 
       const selectedOption = positionOptions.find((option) => option.value === form.position) || null;
       const positionTitle = selectedOption?.label || '';
       const initPayload = {
-        turnstile_token: turnstileToken,
+        turnstile_token: turnstile.token,
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         mobile: form.mobile.trim(),
@@ -1159,7 +1453,7 @@ function App() {
 
       initCompleted = true;
       const applyId = initData.apply_id;
-      setButtonText('Uploading CV...');
+      setSubmitState((prev) => ({ ...prev, buttonText: 'Uploading CV...' }));
 
       const uploadFormData = new FormData();
       uploadFormData.append('apply_id', applyId);
@@ -1191,18 +1485,21 @@ function App() {
       }
 
       sessionStorage.removeItem(DRAFT_KEY);
-      setSuccessApplyId(applyId);
-      setSubmittedContext({
-        name: form.name.trim(),
-        mobile: form.mobile.trim(),
-        positionTitle: positionTitle || form.position,
-        sourceDisplay: sourceText ? sourceDisplayText : '',
-      });
-      setSubmitted(true);
-      setIsSubmitting(false);
+      setSubmitState((prev) => ({
+        ...prev,
+        isSubmitting: false,
+        buttonText: 'Submit Application',
+        successApplyId: applyId,
+        submitted: true,
+        submittedContext: {
+          name: form.name.trim(),
+          mobile: form.mobile.trim(),
+          positionTitle: positionTitle || form.position,
+          sourceDisplay: sourceText ? sourceDisplayText : '',
+        },
+      }));
     } catch (error) {
-      setIsSubmitting(false);
-      setButtonText('Submit Application');
+      setSubmitState((prev) => ({ ...prev, isSubmitting: false, buttonText: 'Submit Application' }));
 
       if (error?.name === 'AbortError') {
         if (initCompleted) {
@@ -1226,74 +1523,19 @@ function App() {
   }
 
   async function handleCopyApplyId() {
-    if (!successApplyId) return;
+    if (!submitState.successApplyId) return;
     try {
       if (!navigator.clipboard?.writeText) {
         throw new Error('clipboard_unavailable');
       }
-      await navigator.clipboard.writeText(successApplyId);
-      setCopyFeedback('Application ID copied');
+      await navigator.clipboard.writeText(submitState.successApplyId);
+      setSubmitState((prev) => ({ ...prev, copyFeedback: 'Application ID copied' }));
     } catch {
-      setCopyFeedback('Please copy the Application ID manually');
+      setSubmitState((prev) => ({ ...prev, copyFeedback: 'Please copy the Application ID manually' }));
     }
   }
 
-  function updateStatusField(field, value) {
-    setStatusForm((current) => ({
-      ...current,
-      [field]: field === 'email' ? String(value || '').trim() : String(value || '').trim(),
-    }));
-    setStatusError('');
-    setStatusResult(null);
-  }
-
-  async function handleStatusCheck(event) {
-    event.preventDefault();
-    setStatusError('');
-    setStatusResult(null);
-
-    const applyId = String(statusForm.applyId || '').trim();
-    const email = String(statusForm.email || '').trim().toLowerCase();
-    if (!applyId || !validateValue('email', email)) {
-      setStatusError('Please enter the Application ID and the same email used for the application.');
-      return;
-    }
-
-    try {
-      setStatusLoading(true);
-      const response = await fetchWithTimeout(`${API_BASE}/v1/apply/status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apply_id: applyId,
-          email,
-        }),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (response.status === 429) {
-        throw new Error(mapPublicApplyError({ status: response.status, payload }));
-      }
-      if (!response.ok || !payload?.success) {
-        setStatusError('We could not verify those application details. Please check the Application ID and email.');
-        return;
-      }
-
-      setStatusResult({
-        applyId: payload.apply_id,
-        statusLabel: payload.status_label,
-        positionTitle: payload.position_title,
-        appliedAt: payload.applied_at,
-        source: payload.source,
-      });
-    } catch (error) {
-      setStatusError(error?.message || 'Unable to check application status right now.');
-    } finally {
-      setStatusLoading(false);
-    }
-  }
+  const { isSubmitting, buttonText, submitted, successApplyId, submitAttempted, submittedContext, copyFeedback } = submitState;
 
   const nameError = getFieldError('name', validation.name);
   const emailError = getFieldError('email', validation.email);
@@ -1301,9 +1543,9 @@ function App() {
   const locationError = getFieldError('location', validation.location);
   const positionError = getFieldError('position', validation.position);
   const fileSizeText = selectedFile ? formatFileSize(selectedFile.size) : '';
-  const submitDisabled = isSubmitting || turnstileStatus === 'loading';
+  const submitDisabled = isSubmitting || turnstile.status !== 'verified';
   const consentInvalid = submitAttempted && !form.consent;
-  const verificationInvalid = submitAttempted && !turnstileToken;
+  const verificationInvalid = submitAttempted && !turnstile.token;
   const detailsReady =
     validateValue('name', form.name) &&
     validateValue('email', form.email) &&
@@ -1312,7 +1554,7 @@ function App() {
   const screeningReady = Object.keys(validateScreeningAnswers(activeScreeningQuestions, screeningAnswers)).length === 0;
   const roleReady = positionOptions.some((option) => option.value && option.value === form.position) && screeningReady;
   const resumeReady = Boolean(selectedFile) && !fileError;
-  const verificationReady = Boolean(form.consent) && Boolean(turnstileToken);
+  const verificationReady = Boolean(form.consent) && Boolean(turnstile.token);
   const currentStep =
     !detailsReady ? 'contact' :
       !roleReady ? 'role' :
@@ -1333,24 +1575,24 @@ function App() {
   const visibleStepIndex = Math.max(0, STEP_ORDER.indexOf(visibleStep));
 
   const verificationLabel =
-    turnstileStatus === 'verified'
+    turnstile.status === 'verified'
       ? 'Verified'
-      : turnstileStatus === 'error'
+      : turnstile.status === 'error'
         ? 'Needs attention'
-        : turnstileStatus === 'expired'
+        : turnstile.status === 'expired'
           ? 'Expired'
-          : turnstileStatus === 'loading'
+          : turnstile.status === 'loading'
             ? 'Loading'
             : 'Pending';
 
   const verificationMessage =
-    turnstileStatus === 'verified'
+    turnstile.status === 'verified'
       ? 'Verification completed. You can submit the application now.'
-      : turnstileStatus === 'error'
+      : turnstile.status === 'error'
         ? 'Verification is not loading. Check your Turnstile domain settings or refresh the page.'
-        : turnstileStatus === 'expired'
+        : turnstile.status === 'expired'
           ? 'Verification expired. Please verify again before submitting.'
-          : turnstileStatus === 'loading'
+          : turnstile.status === 'loading'
             ? 'Preparing the secure verification widget. This usually takes a moment.'
             : 'Complete the secure verification before submitting your application.';
   const submittedWhatsappMessage = [
@@ -1535,7 +1777,7 @@ function App() {
                       </div>
                     </div>
                     <div className="job-card-grid">
-                      {dynamicJobs.map((job) => (
+                      {(dynamicJobs || []).map((job) => (
                         <article key={job.value} className={`job-card ${form.position === job.value ? 'selected' : ''}`}>
                           <div className="job-card-top">
                             <div>
@@ -1684,7 +1926,7 @@ function App() {
                     <form id="apply-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
                       <div className="hp-field" aria-hidden="true">
                         <label htmlFor="_hp_check">Leave this empty</label>
-                        <input ref={hpRef} type="text" id="_hp_check" name="_hp_check" tabIndex="-1" autoComplete="off" />
+                        <input ref={hpRef} type="text" id="_hp_check" name="_hp_check" tabIndex="-1" autoComplete="off" aria-label="Honeypot" />
                       </div>
                       <input type="hidden" id="_timestamp" name="_timestamp" value={formLoadTimeRef.current} readOnly />
                       <input type="hidden" id="_token" name="_token" value={sessionTokenRef.current} readOnly />
@@ -1723,6 +1965,7 @@ function App() {
                             autoComplete="name"
                             value={form.name}
                             aria-invalid={validation.name === false}
+                            aria-label="Full Name"
                             aria-describedby={nameError ? 'name-error' : undefined}
                             onChange={(event) => updateField('name', event.target.value)}
                             onBlur={() => validateField('name')}
@@ -1750,6 +1993,7 @@ function App() {
                             autoComplete="email"
                             value={form.email}
                             aria-invalid={validation.email === false}
+                            aria-label="Email Address"
                             aria-describedby={emailError ? 'email-error' : undefined}
                             onChange={(event) => updateField('email', event.target.value)}
                             onBlur={() => validateField('email')}
@@ -1780,6 +2024,7 @@ function App() {
                               autoComplete="tel"
                               value={form.mobile}
                               aria-invalid={validation.mobile === false}
+                              aria-label="Mobile Number"
                               aria-describedby={mobileError ? 'mobile-error' : undefined}
                               onChange={(event) => updateField('mobile', event.target.value)}
                               onBlur={() => validateField('mobile')}
@@ -1805,6 +2050,7 @@ function App() {
                             autoComplete="address-level2"
                             value={form.location}
                             aria-invalid={validation.location === false}
+                            aria-label="Current Location"
                             aria-describedby={locationError ? 'location-error' : undefined}
                             onChange={(event) => updateField('location', event.target.value)}
                             onBlur={() => validateField('location')}
@@ -1852,6 +2098,7 @@ function App() {
                             required
                             value={form.position}
                             aria-invalid={validation.position === false}
+                            aria-label="Position Applying For"
                             aria-describedby={positionError ? 'position-error' : undefined}
                             onBlur={() => validateField('position')}
                             onChange={(event) => {
@@ -1877,7 +2124,7 @@ function App() {
                             <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="clock" /></span>
                             Experience
                           </label>
-                          <select id="experience" value={form.experience} onChange={(event) => updateField('experience', event.target.value)}>
+                          <select id="experience" value={form.experience} aria-label="Experience" onChange={(event) => updateField('experience', event.target.value)}>
                             {experienceOptions.map(([value, label]) => (
                               <option key={value || 'empty'} value={value}>{label}</option>
                             ))}
@@ -1928,87 +2175,17 @@ function App() {
                           <span className="label-icon" aria-hidden="true"><Icon className="icon-inline" name="file" /></span>
                           Resume / CV
                         </label>
-                        <div
-                          className={`file-dropzone ${dragging ? 'dragging' : ''}`}
-                          onDragEnter={(event) => {
-                            preventDefaults(event);
-                            setDragging(true);
-                          }}
-                          onDragOver={(event) => {
-                            preventDefaults(event);
-                            setDragging(true);
-                          }}
-                          onDragLeave={(event) => {
-                            preventDefaults(event);
-                            setDragging(false);
-                          }}
-                          onDrop={(event) => {
-                            preventDefaults(event);
-                            setDragging(false);
-                            const file = event.dataTransfer.files?.[0];
-                            if (file) {
-                              handleFile(file);
-                            }
-                          }}
-                        >
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            id="cv"
-                            accept=".pdf,.doc,.docx"
-                            required
-                            aria-describedby="file-help"
-                            onChange={(event) => handleFile(event.target.files?.[0])}
-                          />
-                          <div
-                            className={`file-label ${selectedFile ? 'has-file' : ''} ${dragging ? 'dragging' : ''}`}
-                            role="button"
-                            tabIndex="0"
-                            onClick={() => fileInputRef.current?.click()}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                fileInputRef.current?.click();
-                              }
-                            }}
-                          >
-                            <div className="file-icon" aria-hidden="true">
-                              <Icon className="icon-lg" name="file" />
-                            </div>
-                            <div className="file-text">
-                              <div className="main" id="file-name">{selectedFile ? selectedFile.name : 'Choose your CV or drag and drop it here'}</div>
-                              <div className="sub" id="file-help">
-                                {selectedFile ? (
-                                  <>
-                                    <span className="file-size">{fileSizeText}</span>
-                                    <span className="file-meta-separator">{fileTypeLabel(selectedFile)}</span>
-                                  </>
-                                ) : (
-                                  'PDF, DOC, DOCX accepted | maximum 2MB'
-                                )}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              className={`remove-file ${selectedFile ? '' : 'hidden'}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                resetFileInput();
-                              }}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                        {fileError ? <div className="field-error-note">{fileError}</div> : null}
-                        <ResumePreviewCard
-                          file={selectedFile}
-                          fileSizeText={fileSizeText}
-                          pdfPreviewUrl={pdfPreviewUrl}
-                          onChangeFile={() => fileInputRef.current?.click()}
-                          onRemoveFile={resetFileInput}
-                        />
-                      </div>
+                        <FileDropzone
+                        selectedFile={selectedFile}
+                        dragging={dragging}
+                        setDragging={setDragging}
+                        handleFile={handleFile}
+                        fileInputRef={fileInputRef}
+                        resetFileInput={resetFileInput}
+                        fileError={fileError}
+                        fileSizeText={fileSizeText}
+                        pdfPreviewUrl={pdfPreviewUrl}
+                      />
                       <div className="step-actions step-actions-split">
                         <button type="button" className="btn-link-secondary step-backButton" onClick={() => handleStepBack('resume')}>
                           Back
@@ -2045,6 +2222,7 @@ function App() {
                           required
                           checked={form.consent}
                           aria-invalid={consentInvalid}
+                          aria-label="Recruitment Consent"
                           onChange={(event) => {
                             setForm((current) => ({
                               ...current,
@@ -2064,10 +2242,10 @@ function App() {
                             <strong>Security verification</strong>
                             <span>Complete this secure check to activate final submission.</span>
                           </div>
-                          <span className={`verification-chip verification-chip-${turnstileStatus}`}>{verificationLabel}</span>
+                          <span className={`verification-chip verification-chip-${turnstile.status}`}>{verificationLabel}</span>
                         </div>
-                        <div ref={turnstileRef} className={`turnstile-widget turnstile-widget-${turnstileStatus}`} />
-                        <p className={`verification-note verification-${turnstileStatus}`}>{verificationMessage}</p>
+                        <div ref={turnstileRef} className={`turnstile-widget turnstile-widget-${turnstile.status}`} />
+                        <p className={`verification-note verification-${turnstile.status}`}>{verificationMessage}</p>
                       </div>
 
                       <div className="step-actions step-actions-split">
@@ -2236,127 +2414,10 @@ function App() {
 
         {!isApplyView ? (
         <>
-        <section className="section" id="status-check" aria-labelledby="status-check-title">
-          <div className="page-shell">
-            <div className="section-header">
-              <h2 id="status-check-title">Check Application Status</h2>
-              <p>Use your Application ID and the same email you submitted with. This shows only the public application status.</p>
-            </div>
-
-            <div className="status-check-card">
-              <form className="status-check-form" onSubmit={handleStatusCheck}>
-                <div className="status-check-grid">
-                  <label className="form-group">
-                    <span className="required">Application ID</span>
-                    <input
-                      type="text"
-                      value={statusForm.applyId}
-                      placeholder="PA-2026-XXXXXXX"
-                      onChange={(event) => updateStatusField('applyId', event.target.value)}
-                    />
-                  </label>
-                  <label className="form-group">
-                    <span className="required">Email Address</span>
-                    <input
-                      type="email"
-                      value={statusForm.email}
-                      placeholder="your.email@example.com"
-                      onChange={(event) => updateStatusField('email', event.target.value)}
-                    />
-                  </label>
-                </div>
-
-                <div className="status-check-actions">
-                  <button type="submit" className="btn btn-primary" disabled={statusLoading}>
-                    {!statusLoading ? <Icon className="btn-icon" name="search" /> : <span className="spinner" aria-hidden="true" />}
-                    <span>{statusLoading ? 'Checking Status...' : 'Check Status'}</span>
-                  </button>
-                </div>
-              </form>
-
-              {statusError ? <div className="status-check-error" role="alert">{statusError}</div> : null}
-
-              {statusResult ? (
-                <div className="status-result" aria-live="polite">
-                  <div className="status-result-label">{statusResult.statusLabel}</div>
-                  <div className="status-result-meta">
-                    <div className="status-meta-item">
-                      <span>Application ID</span>
-                      <strong>{statusResult.applyId}</strong>
-                    </div>
-                    <div className="status-meta-item">
-                      <span>Position</span>
-                      <strong>{statusResult.positionTitle || '-'}</strong>
-                    </div>
-                    <div className="status-meta-item">
-                      <span>Applied At</span>
-                      <strong>{statusResult.appliedAt || '-'}</strong>
-                    </div>
-                    {statusResult.source ? (
-                      <div className="status-meta-item">
-                        <span>Source</span>
-                        <strong>{statusResult.source}</strong>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
-        <section className="section" aria-labelledby="why-title">
-          <div className="page-shell">
-            <div className="section-header">
-              <h2 id="why-title">Why apply through this portal?</h2>
-              <p>We keep the application flow simple, organized and protected so that candidate details can move quickly to the right HR review stage.</p>
-            </div>
-            <div className="benefit-grid">
-              {benefits.map(([num, title, description]) => (
-                <article className="benefit-card" key={title}>
-                  <div className="benefit-icon" aria-hidden="true">{num}</div>
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="section" id="process" aria-labelledby="process-title">
-          <div className="page-shell">
-            <div className="section-header">
-              <h2 id="process-title">Hiring process</h2>
-              <p>The actual steps may vary by role, but this gives candidates a simple view of the expected journey.</p>
-            </div>
-            <div className="process-grid">
-              {processSteps.map(([step, title, description]) => (
-                <article className="process-card" key={step}>
-                  <div className="process-step">{step}</div>
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="section" id="faq" aria-labelledby="faq-title">
-          <div className="page-shell">
-            <div className="section-header">
-              <h2 id="faq-title">Quick FAQ</h2>
-              <p>Keep your CV updated and ensure your email and mobile number are correct before submitting the form.</p>
-            </div>
-            <div className="faq-panel">
-              {faqItems.map(([question, answer]) => (
-                <div className="faq-item" key={question}>
-                  <strong>{question}</strong>
-                  <span>{answer}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <StatusCheckSection />
+        <WhyApplySection />
+        <ProcessSection />
+        <FAQSection />
         </>
         ) : null}
       </main>
