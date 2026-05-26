@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useReducer, useCallback } from 'react';
 import { API_BASE, TURNSTILE_SITE_KEY } from './config.js';
 import {
   fileTypeLabel,
@@ -714,10 +714,18 @@ function App() {
   const [alert, setAlert] = useState(null);
   const [dynamicJobs, setDynamicJobs] = useState();
   const [publicConfig, setPublicConfig] = useState({ whatsapp_enabled: false, whatsapp_number: '' });
-  const [turnstile, setTurnstile] = useState({ token: '', status: 'loading' });
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileError, setFileError] = useState('');
-  const [dragging, setDragging] = useState(false);
+  const [turnstile, dispatchTurnstile] = useReducer((state, action) => {
+    switch (action.type) {
+      case 'LOADING': return { ...state, status: 'loading' };
+      case 'SUCCESS': return { token: action.payload || '', status: action.payload ? 'verified' : 'ready' };
+      case 'EXPIRED': return { token: '', status: 'expired' };
+      case 'ERROR': return { token: '', status: 'error' };
+      case 'READY': return { ...state, status: 'ready' };
+      case 'RESET': return { token: '', status: 'ready' };
+      default: return state;
+    }
+  }, { token: '', status: 'loading' });
+
   const [submitState, setSubmitState] = useState({
     isSubmitting: false,
     buttonText: 'Submit Application',
@@ -729,9 +737,13 @@ function App() {
   });
 
   const [activeJobModal, setActiveJobModal] = useState(null);
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
-  const [screeningAnswers, setScreeningAnswers] = useState({});
-  const [screeningErrors, setScreeningErrors] = useState({});
+  const [fileState, setFileState] = useState({
+    selected: null,
+    error: '',
+    dragging: false,
+    previewUrl: '',
+  });
+  const [screeningState, setScreeningState] = useState({ answers: {}, errors: {} });
   const [visibleStep, setVisibleStep] = useState('contact');
   const [pageView, setPageView] = useState(() => getPageViewFromHash());
 
@@ -803,13 +815,13 @@ function App() {
     }
 
     if (!TURNSTILE_SITE_KEY) {
-      setTurnstile({ token: '', status: 'error' });
+      dispatchTurnstile({ type: 'ERROR' });
       return undefined;
     }
 
     let cancelled = false;
     let checks = 0;
-    setTurnstile((prev) => ({ ...prev, status: 'loading' }));
+    dispatchTurnstile({ type: 'LOADING' });
 
     const renderTurnstile = () => {
       if (cancelled || !turnstileRef.current || !window.turnstile || globalTurnstileWidgetId) {
@@ -822,21 +834,21 @@ function App() {
           size: 'normal',
           theme: 'light',
           callback: (token) => {
-            setTurnstile({ token: token || '', status: token ? 'verified' : 'ready' });
+            dispatchTurnstile({ type: 'SUCCESS', payload: token });
             setAlert(null);
           },
           'expired-callback': () => {
-            setTurnstile({ token: '', status: 'expired' });
+            dispatchTurnstile({ type: 'EXPIRED' });
             showError('Verification expired. Please complete the secure check again.');
           },
           'error-callback': () => {
-            setTurnstile({ token: '', status: 'error' });
+            dispatchTurnstile({ type: 'ERROR' });
             showError('Verification could not load correctly. Confirm this domain is allowed in Cloudflare Turnstile settings, then refresh and try again.');
           },
         });
-        setTurnstile((prev) => ({ ...prev, status: 'ready' }));
+        dispatchTurnstile({ type: 'READY' });
       } catch {
-        setTurnstile((prev) => ({ ...prev, status: 'error' }));
+        dispatchTurnstile({ type: 'ERROR' });
       }
     };
 
@@ -849,7 +861,7 @@ function App() {
       if (globalTurnstileWidgetId) {
         window.clearInterval(turnstileWatch);
       } else if (checks >= 30) {
-        setTurnstile((prev) => ({ ...prev, status: 'error' }));
+        dispatchTurnstile({ type: 'ERROR' });
         window.clearInterval(turnstileWatch);
       }
     }, 500);
@@ -993,16 +1005,16 @@ function App() {
   }, [submitState.copyFeedback]);
 
   useEffect(() => {
-    if (!selectedFile || !isPreviewablePdfFile(selectedFile)) {
-      setPdfPreviewUrl('');
+    if (!fileState.selected || !isPreviewablePdfFile(fileState.selected)) {
+      setFileState((prev) => ({ ...prev, previewUrl: '' }));
       return undefined;
     }
-    const objectUrl = URL.createObjectURL(selectedFile);
-    setPdfPreviewUrl(objectUrl);
+    const objectUrl = URL.createObjectURL(fileState.selected);
+    setFileState((prev) => ({ ...prev, previewUrl: objectUrl }));
     return () => {
       URL.revokeObjectURL(objectUrl);
     };
-  }, [selectedFile]);
+  }, [fileState.selected]);
 
 
 
@@ -1018,7 +1030,7 @@ function App() {
     const normalizedStep = STEP_ORDER.includes(stepKey) ? stepKey : 'contact';
     setVisibleStep(normalizedStep);
     if (normalizedStep !== 'verify') {
-      setTurnstile({ token: '', status: 'loading' });
+      dispatchTurnstile({ type: 'LOADING' });
     }
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -1055,7 +1067,7 @@ function App() {
     setPageView('apply');
     setVisibleStep(nextStep);
     if (nextStep !== 'verify') {
-      setTurnstile({ token: '', status: 'loading' });
+      dispatchTurnstile({ type: 'LOADING' });
     }
     window.history.replaceState(null, '', '#apply-form');
 
@@ -1077,7 +1089,7 @@ function App() {
     const nextAnchor = String(anchor || 'top').replace(/^#/, '') || 'top';
     const nextHash = `#${nextAnchor}`;
     setPageView('browse');
-    setTurnstile({ token: '', status: 'loading' });
+    dispatchTurnstile({ type: 'LOADING' });
     window.history.replaceState(null, '', nextHash);
 
     window.requestAnimationFrame(() => {
@@ -1110,13 +1122,11 @@ function App() {
   function updateScreeningAnswer(questionId, value) {
     const id = String(questionId || '').trim();
     if (!id) return;
-    setScreeningAnswers((current) => ({ ...current, [id]: String(value || '') }));
-    setScreeningErrors((current) => {
-      if (!current?.[id]) return current;
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
+    setScreeningState((prev) => ({
+      ...prev,
+      answers: { ...prev.answers, [questionId]: value },
+      errors: { ...prev.errors, [questionId]: '' }
+    }));
   }
 
   function updateField(field, value) {
@@ -1189,7 +1199,7 @@ function App() {
 
   function validateFile(file) {
     const result = checkFile(file);
-    setFileError(result.message);
+    setFileState((prev) => ({ ...prev, error: result.message }));
     return result;
   }
 
@@ -1199,12 +1209,12 @@ function App() {
     const result = validateFile(file);
 
     if (result.ok) {
-      setSelectedFile(file);
+      setFileState((prev) => ({ ...prev, selected: file, error: '' }));
       setAlert(null);
       return;
     }
 
-    setSelectedFile(null);
+    setFileState((prev) => ({ ...prev, selected: null }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1212,9 +1222,7 @@ function App() {
   }
 
   function resetFileInput() {
-    setSelectedFile(null);
-    setFileError('');
-    setDragging(false);
+    setFileState((prev) => ({ ...prev, selected: null, error: '', previewUrl: '' }));
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -1227,7 +1235,7 @@ function App() {
   }
 
   function resetTurnstile() {
-    setTurnstile({ token: '', status: 'ready' });
+    dispatchTurnstile({ type: 'RESET' });
 
     if (window.turnstile && typeof window.turnstile.reset === 'function' && globalTurnstileWidgetId) {
       window.turnstile.reset(globalTurnstileWidgetId);
@@ -1536,6 +1544,8 @@ function App() {
   }
 
   const { isSubmitting, buttonText, submitted, successApplyId, submitAttempted, submittedContext, copyFeedback } = submitState;
+  const { answers: screeningAnswers, errors: screeningErrors } = screeningState;
+  const { selected: selectedFile, error: fileError, dragging, previewUrl: pdfPreviewUrl } = fileState;
 
   const nameError = getFieldError('name', validation.name);
   const emailError = getFieldError('email', validation.email);
@@ -2178,7 +2188,7 @@ function App() {
                         <FileDropzone
                         selectedFile={selectedFile}
                         dragging={dragging}
-                        setDragging={setDragging}
+                        setDragging={(val) => setFileState(prev => ({ ...prev, dragging: val }))}
                         handleFile={handleFile}
                         fileInputRef={fileInputRef}
                         resetFileInput={resetFileInput}
@@ -2186,6 +2196,7 @@ function App() {
                         fileSizeText={fileSizeText}
                         pdfPreviewUrl={pdfPreviewUrl}
                       />
+                    </div>
                       <div className="step-actions step-actions-split">
                         <button type="button" className="btn-link-secondary step-backButton" onClick={() => handleStepBack('resume')}>
                           Back
