@@ -1271,7 +1271,7 @@ function App() {
     }
 
     const nextScreeningErrors = validateScreeningAnswers(activeScreeningQuestions, screeningAnswers);
-    setScreeningErrors(nextScreeningErrors);
+    setScreeningState((prev) => ({ ...prev, errors: nextScreeningErrors }));
     if (Object.keys(nextScreeningErrors).length > 0) {
       return { ok: false, message: 'Please answer the required screening questions.', stepKey: 'role' };
     }
@@ -1315,7 +1315,7 @@ function App() {
     }
 
     const nextScreeningErrors = validateScreeningAnswers(activeScreeningQuestions, screeningAnswers);
-    setScreeningErrors(nextScreeningErrors);
+    setScreeningState((prev) => ({ ...prev, errors: nextScreeningErrors }));
     if (Object.keys(nextScreeningErrors).length > 0) {
       return {
         ok: false,
@@ -1375,11 +1375,6 @@ function App() {
 
     if (!result.ok) {
       showError(result.message, result.stepKey);
-      return;
-    }
-
-    if (!turnstile.token) {
-      showError('Please complete the security verification before applying.');
       return;
     }
 
