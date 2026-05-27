@@ -749,6 +749,7 @@ function App() {
   });
 
   const [activeJobModal, setActiveJobModal] = useState(null);
+  const [selectedBrowseJobCode, setSelectedBrowseJobCode] = useState('');
   const [fileState, setFileState] = useState({
     selected: null,
     error: '',
@@ -855,6 +856,22 @@ function App() {
   const rolePanelDescription = usingDynamicJobs
     ? 'The same approved roles from the live feed are previewed here, so candidates see consistent openings before opening the full application flow.'
     : 'Browse broad hiring areas before moving into the guided application flow.';
+  const selectedBrowseJob = useMemo(() => {
+    if (!usingDynamicJobs || !Array.isArray(dynamicJobs) || dynamicJobs.length === 0) {
+      return null;
+    }
+    return dynamicJobs.find((job) => job.value === selectedBrowseJobCode) || dynamicJobs[0];
+  }, [dynamicJobs, selectedBrowseJobCode, usingDynamicJobs]);
+
+  useEffect(() => {
+    if (!usingDynamicJobs || !Array.isArray(dynamicJobs) || dynamicJobs.length === 0) {
+      setSelectedBrowseJobCode('');
+      return;
+    }
+    setSelectedBrowseJobCode((current) => (
+      dynamicJobs.some((job) => job.value === current) ? current : dynamicJobs[0].value
+    ));
+  }, [dynamicJobs, usingDynamicJobs]);
 
   useEffect(() => {
     const verificationStepActive = pageView === 'apply' && visibleStep === 'verify';
@@ -1852,45 +1869,117 @@ function App() {
                         {availableRoleCount} live role{availableRoleCount > 1 ? 's' : ''}
                       </span>
                     </div>
-                    <div className="job-card-grid">
-                      {(dynamicJobs || []).map((job) => (
-                        <article key={job.value} className={`job-card ${form.position === job.value ? 'selected' : ''}`}>
-                          <div className="job-card-top">
-                            <div>
-                              <strong>{job.label}</strong>
-                              <span>{job.location || job.experience || 'Approved role ready for application'}</span>
-                            </div>
-                            <div className="job-card-badges">
-                              <span className="job-card-count">
-                                {job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}
-                              </span>
-                              {form.position === job.value ? <span className="job-card-active">Selected</span> : null}
-                            </div>
+                    <div className="job-browser-layout">
+                      <div className="job-card-grid job-browser-list">
+                        {(dynamicJobs || []).map((job) => {
+                          const isPreviewing = selectedBrowseJob?.value === job.value;
+                          const isApplying = form.position === job.value;
+                          return (
+                            <article
+                              key={job.value}
+                              className={`job-card ${isPreviewing ? 'selected' : ''}`}
+                            >
+                              <button
+                                type="button"
+                                className="job-card-surface"
+                                onClick={() => setSelectedBrowseJobCode(job.value)}
+                                aria-pressed={isPreviewing}
+                              >
+                                <div className="job-card-top">
+                                  <div>
+                                    <strong>{job.label}</strong>
+                                    <span>{job.location || job.experience || 'Approved role ready for application'}</span>
+                                  </div>
+                                  <div className="job-card-badges">
+                                    <span className="job-card-count">
+                                      {job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}
+                                    </span>
+                                    {isPreviewing ? <span className="job-card-active">Previewing</span> : null}
+                                    {!isPreviewing && isApplying ? <span className="job-card-active">Selected</span> : null}
+                                  </div>
+                                </div>
+                                <div className="job-card-body">
+                                  <p className="job-card-summary">
+                                    {job.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the application form now.'}
+                                  </p>
+                                  <div className="job-card-meta">
+                                    {job.location ? <span>Location: {job.location}</span> : null}
+                                    {job.experience ? <span>Experience: {job.experience}</span> : null}
+                                    <span>
+                                      {Array.isArray(job.screeningQuestions) && job.screeningQuestions.length > 0
+                                        ? `${job.screeningQuestions.length} screening question${job.screeningQuestions.length > 1 ? 's' : ''}`
+                                        : 'No pre-screening'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </button>
+                              <div className="job-card-actions">
+                                <button
+                                  type="button"
+                                  className="job-card-link"
+                                  onClick={() => {
+                                    setSelectedBrowseJobCode(job.value);
+                                    setActiveJobModal(job);
+                                  }}
+                                >
+                                  <Icon className="icon-inline" name="search" /> View Details
+                                </button>
+                                <button
+                                  type="button"
+                                  className="job-card-apply"
+                                  onClick={() => {
+                                    setSelectedBrowseJobCode(job.value);
+                                    focusApplicationForm(job.value);
+                                  }}
+                                >
+                                  <Icon className="icon-inline" name="send" /> Apply Now
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+
+                      {selectedBrowseJob ? (
+                        <aside className="job-detail-panel" aria-label="Selected role details">
+                          <span className="job-detail-panel-kicker">Selected role details</span>
+                          <h4>{selectedBrowseJob.label}</h4>
+                          <p className="job-detail-panel-summary">
+                            {selectedBrowseJob.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the guided application flow now.'}
+                          </p>
+                          <div className="job-detail-panel-meta">
+                            <span>{selectedBrowseJob.openingCount > 0 ? `${selectedBrowseJob.openingCount} opening${selectedBrowseJob.openingCount > 1 ? 's' : ''}` : 'Open role'}</span>
+                            {selectedBrowseJob.location ? <span>{selectedBrowseJob.location}</span> : null}
+                            {selectedBrowseJob.experience ? <span>{selectedBrowseJob.experience}</span> : null}
                           </div>
-                          <div className="job-card-body">
-                            <p className="job-card-summary">
-                              {job.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the application form now.'}
-                            </p>
-                            <div className="job-card-meta">
-                              {job.location ? <span>Location: {job.location}</span> : null}
-                              {job.experience ? <span>Experience: {job.experience}</span> : null}
-                              <span>
-                                {Array.isArray(job.screeningQuestions) && job.screeningQuestions.length > 0
-                                  ? `${job.screeningQuestions.length} screening question${job.screeningQuestions.length > 1 ? 's' : ''}`
-                                  : 'No pre-screening'}
-                              </span>
+                          {selectedBrowseJob.skills ? (
+                            <div className="job-detail-panel-section">
+                              <strong>Skills</strong>
+                              <p>{selectedBrowseJob.skills}</p>
                             </div>
+                          ) : null}
+                          <div className="job-detail-panel-section">
+                            <strong>Pre-screening</strong>
+                            {Array.isArray(selectedBrowseJob.screeningQuestions) && selectedBrowseJob.screeningQuestions.length > 0 ? (
+                              <ul className="job-detail-panel-list">
+                                {selectedBrowseJob.screeningQuestions.map((question) => (
+                                  <li key={question.id}>{question.question}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p>No pre-screening questions are required for this role.</p>
+                            )}
                           </div>
-                          <div className="job-card-actions">
-                            <button type="button" className="job-card-link" onClick={() => setActiveJobModal(job)}>
-                              <Icon className="icon-inline" name="search" /> View Details
+                          <div className="job-detail-panel-actions">
+                            <button type="button" className="job-card-link" onClick={() => setActiveJobModal(selectedBrowseJob)}>
+                              <Icon className="icon-inline" name="search" /> View full details
                             </button>
-                            <button type="button" className="job-card-apply" onClick={() => focusApplicationForm(job.value)}>
+                            <button type="button" className="job-card-apply" onClick={() => focusApplicationForm(selectedBrowseJob.value)}>
                               <Icon className="icon-inline" name="send" /> Apply Now
                             </button>
                           </div>
-                        </article>
-                      ))}
+                        </aside>
+                      ) : null}
                     </div>
                   </div>
                 ) : (

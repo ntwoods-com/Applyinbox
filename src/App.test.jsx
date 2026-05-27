@@ -220,6 +220,42 @@ describe('Applyinbox candidate journey', () => {
     expect(screen.getByText(/same approved roles from the live feed are previewed here/i)).toBeTruthy();
   });
 
+  it('shows proper selected-role details when a live role card is clicked', async () => {
+    global.fetch = buildFetchMock({
+      jobs: [
+        {
+          job_public_code: 'OPS-001',
+          position_title: 'Operations Executive',
+          opening_count: 2,
+          location: 'Indore',
+          job_description: 'Coordinate daily operations and support branch workflows.',
+          screening_questions: [{ id: 'notice_period', question: 'Notice period?', type: 'text', required: true }],
+        },
+        {
+          job_public_code: 'QA-002',
+          position_title: 'Quality Analyst',
+          opening_count: 1,
+          location: 'Bhopal',
+          job_description: 'Review production output and maintain quality documentation.',
+          skills: 'Quality checks, reporting',
+          screening_questions: [{ id: 'shift_ready', question: 'Can you work shifts?', type: 'yes_no', required: true }],
+        },
+      ],
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Live role highlights' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Operations Executive', level: 4 })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Quality Analyst/i }));
+
+    const detailPanel = screen.getByLabelText('Selected role details');
+    expect(await within(detailPanel).findByRole('heading', { name: 'Quality Analyst', level: 4 })).toBeTruthy();
+    expect(within(detailPanel).getByText(/Review production output and maintain quality documentation/i)).toBeTruthy();
+    expect(within(detailPanel).getByText(/Can you work shifts/i)).toBeTruthy();
+  });
+
   it('resets stale screening answers when the selected live role changes', async () => {
     global.fetch = buildFetchMock({
       jobs: [
