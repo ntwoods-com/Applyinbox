@@ -3417,7 +3417,7 @@ h1 {
 
 .job-browser-layout {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(280px, 0.88fr);
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -3447,6 +3447,7 @@ h1 {
 }
 
 .job-browser-list {
+  min-width: 0;
   max-height: 760px;
   overflow: auto;
   padding-right: 4px;
@@ -3456,6 +3457,7 @@ h1 {
 .job-card {
   display: grid;
   gap: 14px;
+  min-width: 0;
   min-height: 0;
   padding: 18px;
   border: 1px solid rgba(36, 74, 61, 0.12);
@@ -3482,6 +3484,7 @@ h1 {
   border: 0;
   padding: 0;
   width: 100%;
+  min-width: 0;
   display: grid;
   gap: 12px;
   text-align: left;
@@ -3495,6 +3498,18 @@ h1 {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.job-card-top > div:first-child,
+.job-card-body {
+  min-width: 0;
+}
+
+.job-card-top strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .job-card-body {
@@ -3539,6 +3554,7 @@ h1 {
 .job-detail-panel {
   position: sticky;
   top: 12px;
+  min-width: 0;
   display: grid;
   gap: 14px;
   padding: 20px;

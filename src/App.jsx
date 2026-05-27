@@ -831,7 +831,7 @@ function App() {
       }));
     }
 
-    return (dynamicJobs || []).slice(0, 4).map((job) => {
+    return (dynamicJobs || []).slice(0, 3).map((job) => {
       const screeningCount = Array.isArray(job.screeningQuestions) ? job.screeningQuestions.length : 0;
       const meta = [];
       if (job.location) meta.push(job.location);
