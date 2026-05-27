@@ -24,7 +24,7 @@ describe('public apply components', () => {
 
     expect(screen.getByText('Role summary')).toBeTruthy();
     expect(screen.getByText('Notice period?')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Apply Now' }));
+    fireEvent.click(screen.getByRole('button', { name: /Apply now/i }));
     expect(onApplyNow).toHaveBeenCalledTimes(1);
   });
 

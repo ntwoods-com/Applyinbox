@@ -129,8 +129,7 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    await openApplicationPage();
-    fireEvent.click(await screen.findByRole('button', { name: /Role preference/i }));
+    await completeContactStep();
     
     const positionSelect = await screen.findByLabelText(/Position Applying For/i);
     expect(positionSelect).toBeTruthy();
@@ -191,18 +190,19 @@ describe('Applyinbox candidate journey', () => {
 
     await screen.findAllByText('Operations Executive');
     fireEvent.click(screen.getByRole('button', { name: 'View Details' }));
-    const dialog = screen.getByRole('dialog', { name: 'Operations Executive' });
+    const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeTruthy();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply Now' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /Apply now/i }));
 
     await waitFor(() => {
+      expect(screen.getByText('Complete your application')).toBeTruthy();
       expect(screen.getByLabelText(/Position Applying For/i).value).toBe('OPS-001');
     });
     expect(screen.getByRole('heading', { name: 'Role preference' })).toBeTruthy();
   });
 
-  it('mirrors live approved roles in the browse-side highlights panel', async () => {
+  it('mirrors live approved roles in the open roles section', async () => {
     global.fetch = buildFetchMock({
       jobs: [
         {
@@ -217,9 +217,8 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Live role highlights' })).toBeTruthy();
-    expect(screen.getAllByText('Operations Executive').length).toBeGreaterThan(1);
-    expect(screen.getByText(/same approved roles from the live feed are previewed here/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /Explore current openings/i })).toBeTruthy();
+    expect(screen.getAllByText('Operations Executive').length).toBeGreaterThan(0);
   });
 
   it('opens the role details modal when a live role card is clicked', async () => {
@@ -247,10 +246,11 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Live role highlights' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /Explore current openings/i })).toBeTruthy();
     expect(screen.getAllByText('Operations Executive').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole('button', { name: /Quality Analyst/i }));
+    const viewDetailsButtons = screen.getAllByRole('button', { name: /View Details/i });
+    fireEvent.click(viewDetailsButtons[1]); // Click the second one (Quality Analyst)
 
     const dialog = await screen.findByRole('dialog', { name: 'Quality Analyst' });
     expect(within(dialog).getByText(/Review production output and maintain quality documentation/i)).toBeTruthy();
@@ -275,8 +275,7 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    await openApplicationPage();
-    fireEvent.click(await screen.findByRole('button', { name: /Role preference/i }));
+    await completeContactStep();
     const positionSelect = await screen.findByLabelText(/Position Applying For/i);
     fireEvent.change(positionSelect, { target: { value: 'OPS-001' } });
     const firstQuestion = await screen.findByLabelText('Notice period?');

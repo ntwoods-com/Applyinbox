@@ -100,6 +100,16 @@ const VALID_EXPERIENCE = new Set(
   experienceOptions.flatMap(([value]) => (value ? [value] : []))
 );
 
+if (typeof window !== 'undefined' && !window.CareersAnalytics) {
+  window.CareersAnalytics = {
+    role_card_clicked: (id) => console.log('Analytics: role_card_clicked', id),
+    view_details_clicked: (id) => console.log('Analytics: view_details_clicked', id),
+    apply_now_clicked: (id) => console.log('Analytics: apply_now_clicked', id),
+    filter_used: (type, value) => console.log('Analytics: filter_used', type, value),
+    status_check_clicked: () => console.log('Analytics: status_check_clicked'),
+  };
+}
+
 function Icon({ name, className = '', title }) {
   const sharedProps = {
     className,
@@ -512,6 +522,7 @@ function StatusCheckSection() {
 
   async function handleStatusCheck(event) {
     event.preventDefault();
+    window.CareersAnalytics?.status_check_clicked?.();
     if (statusState.loading) return;
 
     const applyId = String(statusState.form.applyId || '').trim();
@@ -725,6 +736,14 @@ function App() {
   const [validation, setValidation] = useState({});
   const [alert, setAlert] = useState(null);
   const [dynamicJobs, setDynamicJobs] = useState();
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState('');
+  
+  const [roleSearch, setRoleSearch] = useState('');
+  const [roleDept, setRoleDept] = useState('');
+  const [roleScreening, setRoleScreening] = useState('');
+  const [roleSort, setRoleSort] = useState('latest');
+  
   const [publicConfig, setPublicConfig] = useState({ whatsapp_enabled: false, whatsapp_number: '' });
   const [turnstile, dispatchTurnstile] = useReducer((state, action) => {
     switch (action.type) {
@@ -971,54 +990,68 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPublicApplyData() {
-      try {
-        const jobsRes = await fetchWithTimeout(`${API_BASE}/v1/apply/jobs`, { method: 'GET' }, 15000);
-        if (jobsRes.ok) {
-          const jobsData = await jobsRes.json();
-          const items = Array.isArray(jobsData?.items) ? jobsData.items : [];
-          const nextJobs = items.reduce((acc, item) => {
-            const value = String(item?.job_public_code || '').trim();
-            const label = String(item?.position_title || '').trim();
-            if (value && label) {
-              acc.push({
-                value,
-                label,
-                requirementId: String(item?.requirement_id || '').trim(),
-                openingCount: Number(item?.opening_count || 0),
-                location: String(item?.location || '').trim(),
-                experience: String(item?.experience || '').trim(),
-                jobDescription: String(item?.job_description || '').trim(),
-                skills: String(item?.skills || '').trim(),
-                screeningQuestions: Array.isArray(item?.screening_questions) ? item.screening_questions : [],
-                dynamic: true,
-              });
-            }
-            return acc;
-          }, []);
-          if (!cancelled && nextJobs.length > 0) {
-            setDynamicJobs(nextJobs);
-            setForm((current) => {
-              if (current.position && !nextJobs.some((opt) => opt.value === current.position)) {
-                return { ...current, position: '' };
-              }
-              return current;
-            });
-            setValidation((current) => {
-              if (current.position !== undefined) {
-                 return { ...current, position: undefined };
-              }
-              return current;
+  const fetchJobsData = async () => {
+    setJobsLoading(true);
+    setJobsError('');
+    try {
+      const jobsRes = await fetchWithTimeout(`${API_BASE}/v1/apply/jobs`, { method: 'GET' }, 15000);
+      if (jobsRes.ok) {
+        const jobsData = await jobsRes.json();
+        const items = Array.isArray(jobsData?.items) ? jobsData.items : [];
+        const nextJobs = items.reduce((acc, item) => {
+          const value = String(item?.job_public_code || '').trim();
+          const label = String(item?.position_title || '').trim();
+          if (value && label) {
+            acc.push({
+              value,
+              label,
+              requirementId: String(item?.requirement_id || '').trim(),
+              openingCount: Number(item?.opening_count || 0),
+              location: String(item?.location || '').trim(),
+              experience: String(item?.experience || '').trim(),
+              jobDescription: String(item?.job_description || '').trim(),
+              skills: String(item?.skills || '').trim(),
+              screeningQuestions: Array.isArray(item?.screening_questions) ? item.screening_questions : [],
+              dynamic: true,
+              // Fallback for sorting and filtering if missing
+              department: String(item?.department || '').trim(), 
             });
           }
-        }
-      } catch {
-        // Keep TODO fallback jobs active until all public roles are backend-driven.
+          return acc;
+        }, []);
+        
+        setDynamicJobs(nextJobs);
+        setJobsLoading(false);
+        
+        setForm((current) => {
+          if (current.position && !nextJobs.some((opt) => opt.value === current.position)) {
+            return { ...current, position: '' };
+          }
+          return current;
+        });
+        setValidation((current) => {
+          if (current.position !== undefined) {
+             return { ...current, position: undefined };
+          }
+          return current;
+        });
+      } else {
+        setJobsLoading(false);
+        setJobsError('Failed to load roles. Please try again.');
       }
+    } catch {
+      setJobsLoading(false);
+      setJobsError('Network error. Unable to load live roles.');
+    }
+  };
 
+  useEffect(() => {
+    fetchJobsData();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfigData() {
       try {
         const configRes = await fetchWithTimeout(`${API_BASE}/v1/apply/config`, { method: 'GET' }, 15000);
         if (configRes.ok) {
@@ -1038,8 +1071,7 @@ function App() {
         }
       }
     }
-
-    loadPublicApplyData();
+    loadConfigData();
     return () => {
       cancelled = true;
     };
@@ -1666,6 +1698,41 @@ function App() {
   const whatsappConfirmationUrl = showWhatsappButton
     ? `https://wa.me/${publicConfig.whatsapp_number}?text=${encodeURIComponent(submittedWhatsappMessage)}`
     : '';
+
+  const filteredJobs = useMemo(() => {
+    if (!dynamicJobs) return [];
+    let jobs = [...dynamicJobs];
+
+    if (roleSearch) {
+      const q = roleSearch.toLowerCase();
+      jobs = jobs.filter(j => j.label.toLowerCase().includes(q) || j.jobDescription.toLowerCase().includes(q));
+    }
+    
+    if (roleDept) {
+      jobs = jobs.filter(j => j.department === roleDept);
+    }
+    
+    if (roleScreening === 'required') {
+      jobs = jobs.filter(j => j.screeningQuestions && j.screeningQuestions.length > 0);
+    } else if (roleScreening === 'none') {
+      jobs = jobs.filter(j => !j.screeningQuestions || j.screeningQuestions.length === 0);
+    }
+
+    if (roleSort === 'title') {
+      jobs.sort((a, b) => a.label.localeCompare(b.label));
+    } else if (roleSort === 'openings') {
+      jobs.sort((a, b) => (b.openingCount || 0) - (a.openingCount || 0));
+    }
+
+    return jobs;
+  }, [dynamicJobs, roleSearch, roleDept, roleScreening, roleSort]);
+
+  const uniqueDepartments = useMemo(() => {
+    if (!dynamicJobs) return [];
+    const depts = new Set(dynamicJobs.map(j => j.department).filter(Boolean));
+    return Array.from(depts).sort();
+  }, [dynamicJobs]);
+
   const isApplyView = pageView === 'apply';
 
   return (
@@ -1761,34 +1828,34 @@ function App() {
             <section className="stats-strip">
               <div className="page-shell stats-grid">
                 <div className="stat-item">
+                  <div className="stat-icon"><Icon name="shield" /></div>
+                  <div>
+                    <strong>No payment</strong>
+                    <span>required</span>
+                  </div>
+                </div>
+                <div className="stat-divider"></div>
+                <div className="stat-item">
                   <div className="stat-icon"><Icon name="briefcase" /></div>
                   <div>
-                    <strong>{availableRoleCount}</strong>
-                    <span>Live Roles</span>
+                    <strong>Direct company</strong>
+                    <span>application</span>
                   </div>
                 </div>
                 <div className="stat-divider"></div>
                 <div className="stat-item">
                   <div className="stat-icon"><Icon name="user" /></div>
                   <div>
-                    <strong>Manual</strong>
-                    <span>HR Review</span>
+                    <strong>Manual HR</strong>
+                    <span>review</span>
                   </div>
                 </div>
                 <div className="stat-divider"></div>
                 <div className="stat-item">
-                  <div className="stat-icon"><Icon name="shield" /></div>
+                  <div className="stat-icon"><Icon name="lock" /></div>
                   <div>
-                    <strong>Secure</strong>
-                    <span>CV Upload</span>
-                  </div>
-                </div>
-                <div className="stat-divider"></div>
-                <div className="stat-item">
-                  <div className="stat-icon"><Icon name="send" /></div>
-                  <div>
-                    <strong>Direct</strong>
-                    <span>Website Application</span>
+                    <strong>Secure CV</strong>
+                    <span>upload</span>
                   </div>
                 </div>
               </div>
@@ -1802,13 +1869,94 @@ function App() {
                     <h2>Explore current openings</h2>
                     <p>Select a role to view details and apply</p>
                   </div>
-                  <a href="#roles" className="btn-link-secondary" onClick={(event) => handleBrowseNavigation(event, 'roles')}>View all roles <Icon className="icon-inline" name="arrowRight" /></a>
                 </div>
 
-                {usingDynamicJobs ? (
-                  <div className="job-grid-full">
-                    {(dynamicJobs || []).map((job, jobIndex) => {
+                <div className="role-filters">
+                  <input
+                    type="text"
+                    className="filter-input"
+                    placeholder="Search by role title..."
+                    aria-label="Search roles"
+                    value={roleSearch}
+                    onChange={(e) => {
+                       setRoleSearch(e.target.value);
+                       window.CareersAnalytics?.filter_used?.('search', e.target.value);
+                    }}
+                  />
+                  <select 
+                    className="filter-select"
+                    aria-label="Filter by department"
+                    value={roleDept}
+                    onChange={(e) => {
+                       setRoleDept(e.target.value);
+                       window.CareersAnalytics?.filter_used?.('department', e.target.value);
+                    }}
+                  >
+                    <option value="">All Departments</option>
+                    {uniqueDepartments.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="filter-select"
+                    aria-label="Filter by screening"
+                    value={roleScreening}
+                    onChange={(e) => {
+                       setRoleScreening(e.target.value);
+                       window.CareersAnalytics?.filter_used?.('screening', e.target.value);
+                    }}
+                  >
+                    <option value="">Any Screening</option>
+                    <option value="none">No Screening</option>
+                    <option value="required">Screening Required</option>
+                  </select>
+                  <select
+                    className="filter-select"
+                    aria-label="Sort roles"
+                    value={roleSort}
+                    onChange={(e) => {
+                       setRoleSort(e.target.value);
+                       window.CareersAnalytics?.filter_used?.('sort', e.target.value);
+                    }}
+                  >
+                    <option value="latest">Latest</option>
+                    <option value="title">Role Title</option>
+                    <option value="openings">Most Openings</option>
+                  </select>
+                </div>
+
+                <div className="job-grid-full">
+                  {jobsLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="job-skeleton-card">
+                        <div className="skeleton-line title"></div>
+                        <div className="skeleton-line short"></div>
+                        <div style={{ marginTop: 'auto' }}>
+                          <div className="skeleton-line" style={{ marginBottom: 8 }}></div>
+                          <div className="skeleton-line short"></div>
+                        </div>
+                      </div>
+                    ))
+                  ) : jobsError ? (
+                    <div className="roles-empty-state">
+                      <h3>{jobsError}</h3>
+                      <p>We're having trouble reaching the HR system.</p>
+                      <button type="button" className="btn btn-primary" onClick={fetchJobsData}>
+                        Retry Loading
+                      </button>
+                    </div>
+                  ) : filteredJobs.length === 0 ? (
+                    <div className="roles-empty-state">
+                      <h3>No roles found</h3>
+                      <p>Try adjusting your search or filters.</p>
+                      <button type="button" className="btn-link-secondary" onClick={() => { setRoleSearch(''); setRoleDept(''); setRoleScreening(''); }}>
+                        Clear Filters
+                      </button>
+                    </div>
+                  ) : (
+                    filteredJobs.map((job, jobIndex) => {
                       const isApplying = form.position === job.value;
+                      const hasScreening = job.screeningQuestions && job.screeningQuestions.length > 0;
                       return (
                         <article className={`job-card ${isApplying ? 'selected' : ''}`} key={job.value} style={{ '--card-index': jobIndex }}>
                           <div className="job-card-icon">
@@ -1823,32 +1971,44 @@ function App() {
                             <p className="job-card-summary">
                               {job.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the application form now.'}
                             </p>
-                            <span className="no-screening-tag">No pre-screening</span>
+                            {hasScreening ? (
+                              <span className="no-screening-tag" style={{ background: 'rgba(217, 119, 6, 0.1)', color: '#d97706', border: '1px solid rgba(217, 119, 6, 0.2)' }}>Pre-screening required</span>
+                            ) : (
+                              <span className="no-screening-tag">No pre-screening</span>
+                            )}
                           </div>
                           <div className="job-card-actions">
-                            <button type="button" className="job-card-link" onClick={() => setActiveJobModal(job)}>
+                            <button type="button" className="job-card-link" onClick={() => {
+                               window.CareersAnalytics?.view_details_clicked?.(job.value);
+                               setActiveJobModal(job);
+                            }}>
                               View Details
                             </button>
-                            <button type="button" className="job-card-apply" onClick={() => focusApplicationForm(job.value)}>
+                            <button type="button" className="job-card-apply" onClick={() => {
+                               window.CareersAnalytics?.apply_now_clicked?.(job.value);
+                               focusApplicationForm(job.value);
+                            }}>
                               <Icon className="icon-inline" name="send" /> Apply Now
                             </button>
                           </div>
                         </article>
                       );
-                    })}
-                  </div>
-                ) : (
-                  <div className="preview-fallback-panel">
-                    <strong>Live roles are temporarily unavailable.</strong>
-                    <p>Fallback role selection is available inside the application page so you can continue the apply flow.</p>
-                  </div>
-                )}
-                
-                <div className="roles-more-action">
-                  <a href="#roles" className="btn-link-secondary" onClick={(event) => handleBrowseNavigation(event, 'roles')}>+ View more roles <Icon className="icon-inline" name="arrowRight" /></a>
+                    })
+                  )}
                 </div>
               </div>
             </section>
+            
+            <div className="mobile-sticky-cta">
+              <a href="#roles" className="btn btn-primary" onClick={(e) => {
+                 window.CareersAnalytics?.apply_now_clicked?.('mobile_cta');
+                 handleBrowseNavigation(e, 'roles');
+              }}>View Roles</a>
+              <button type="button" className="btn btn-primary" onClick={() => {
+                 window.CareersAnalytics?.apply_now_clicked?.('mobile_cta_apply');
+                 openBrowsePage('apply');
+              }}>Apply Now</button>
+            </div>
           </>
         ) : (
           <section className="section apply-section" id="apply-form" aria-label="Application form">
@@ -2354,7 +2514,6 @@ function App() {
                   </div>
                 )}
               </div>
-              )}
             </aside>
           </div>
         </section>
