@@ -3067,14 +3067,98 @@ h1 {
     linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(246, 250, 255, 0.92));
 }
 
+.info-panel-title {
+  align-items: flex-start;
+}
+
+.info-panel-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.info-panel-copy {
+  margin: 0;
+  max-width: 480px;
+  color: var(--wood-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .role-card {
   padding: 18px 16px;
   border-color: rgba(36, 74, 61, 0.12);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 251, 255, 0.92));
 }
 
+.role-card-live {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 208px;
+}
+
+.role-card-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--wood-warm);
+  background: rgba(159, 111, 61, 0.1);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.role-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .role-card b {
   font-size: 15px;
+}
+
+.role-card-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--wood-ink);
+  background: rgba(36, 74, 61, 0.08);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.role-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.role-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #355347;
+  background: rgba(244, 247, 252, 0.92);
+  border: 1px solid rgba(36, 74, 61, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.info-panel-note {
+  margin: 14px 2px 0;
+  color: var(--wood-soft);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .application-shell {
@@ -3324,6 +3408,31 @@ h1 {
     linear-gradient(180deg, rgba(245, 248, 255, 0.9), rgba(255, 252, 247, 0.88));
 }
 
+.job-browser-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-browser-count,
+.job-card-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--wood-ink);
+  background: rgba(36, 74, 61, 0.08);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.application-preview-card .job-card-grid {
+  grid-template-columns: 1fr;
+}
+
 .job-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3354,6 +3463,13 @@ h1 {
   box-shadow: 0 22px 40px rgba(22, 131, 90, 0.12);
 }
 
+.job-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .job-card-body {
   display: grid;
   gap: 12px;
@@ -3364,6 +3480,10 @@ h1 {
   color: #4e5e56;
   font-size: 13px;
   line-height: 1.7;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .job-card-meta {
@@ -3382,6 +3502,11 @@ h1 {
   border: 1px solid rgba(36, 74, 61, 0.08);
   font-size: 12px;
   font-weight: 700;
+}
+
+.job-card-actions {
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 .step-actions {

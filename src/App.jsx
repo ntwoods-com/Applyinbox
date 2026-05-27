@@ -21,7 +21,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
-const roleCards = [
+const fallbackRoleCards = [
   ['Accounts & Admin', 'Accounting, office coordination and operations support.'],
   ['HR & Recruitment', 'Hiring, candidate coordination and employee lifecycle.'],
   ['Sales & Marketing', 'Customer coordination, field sales and business growth.'],
@@ -69,6 +69,18 @@ const experienceOptions = [
 ];
 
 const STEP_ORDER = ['contact', 'role', 'resume', 'verify'];
+
+function buildRolePreviewText(jobDescription) {
+  const text = String(jobDescription || '').replace(/\s+/g, ' ').trim();
+  if (!text) {
+    return 'Open this approved role to review the full brief and continue with the guided application flow.';
+  }
+  const words = text.split(' ');
+  if (words.length <= 16) {
+    return text;
+  }
+  return `${words.slice(0, 16).join(' ')}...`;
+}
 
 function getPageViewFromHash(hash = window.location.hash) {
   const normalized = String(hash || '').trim().toLowerCase();
@@ -806,6 +818,43 @@ function App() {
       ? 'Active approved roles are synced from the HRMS when available.'
       : 'Fallback role categories remain available even if the jobs feed is temporarily unavailable.'],
   ];
+  const featuredRoleCards = useMemo(() => {
+    if (!usingDynamicJobs) {
+      return fallbackRoleCards.map(([title, description]) => ({
+        key: title,
+        title,
+        description,
+        meta: [],
+        openingsLabel: '',
+        isLive: false,
+      }));
+    }
+
+    return (dynamicJobs || []).slice(0, 4).map((job) => {
+      const screeningCount = Array.isArray(job.screeningQuestions) ? job.screeningQuestions.length : 0;
+      const meta = [];
+      if (job.location) meta.push(job.location);
+      if (job.experience) meta.push(job.experience);
+      meta.push(
+        screeningCount > 0
+          ? `${screeningCount} screening question${screeningCount > 1 ? 's' : ''}`
+          : 'No pre-screening'
+      );
+      return {
+        key: job.value,
+        title: job.label,
+        description: buildRolePreviewText(job.jobDescription),
+        meta,
+        openingsLabel: job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role',
+        isLive: true,
+      };
+    });
+  }, [dynamicJobs, usingDynamicJobs]);
+  const hiddenLiveRoleCount = usingDynamicJobs ? Math.max(availableRoleCount - featuredRoleCards.length, 0) : 0;
+  const rolePanelTitle = usingDynamicJobs ? 'Live role highlights' : 'Open role categories';
+  const rolePanelDescription = usingDynamicJobs
+    ? 'The same approved roles from the live feed are previewed here, so candidates see consistent openings before opening the full application flow.'
+    : 'Browse broad hiring areas before moving into the guided application flow.';
 
   useEffect(() => {
     const verificationStepActive = pageView === 'apply' && visibleStep === 'verify';
@@ -1690,17 +1739,36 @@ function App() {
 
               <div className="info-panel" id="roles">
                 <div className="info-panel-title">
-                  <h2>Open role categories</h2>
+                  <div className="info-panel-heading">
+                    <h2>{rolePanelTitle}</h2>
+                    <p className="info-panel-copy">{rolePanelDescription}</p>
+                  </div>
                   {sourceText ? <span className="source-pill show">Source: {sourceDisplayText}</span> : <span className="source-pill" />}
                 </div>
                 <div className="role-grid">
-                  {roleCards.map(([title, description]) => (
-                    <div className="role-card" key={title}>
-                      <b>{title}</b>
-                      <small>{description}</small>
-                    </div>
+                  {featuredRoleCards.map((role) => (
+                    <article className={`role-card ${role.isLive ? 'role-card-live' : ''}`} key={role.key}>
+                      {role.isLive ? <span className="role-card-kicker">Live approved role</span> : null}
+                      <div className="role-card-heading">
+                        <b>{role.title}</b>
+                        {role.openingsLabel ? <span className="role-card-count">{role.openingsLabel}</span> : null}
+                      </div>
+                      <small>{role.description}</small>
+                      {role.meta.length > 0 ? (
+                        <div className="role-card-meta" aria-label={`${role.title} quick facts`}>
+                          {role.meta.map((item) => (
+                            <span key={`${role.key}-${item}`}>{item}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
                   ))}
                 </div>
+                {hiddenLiveRoleCount > 0 ? (
+                  <p className="info-panel-note">
+                    +{hiddenLiveRoleCount} more live role{hiddenLiveRoleCount > 1 ? 's' : ''} are listed in the approved roles panel.
+                  </p>
+                ) : null}
               </div>
             </div>
             ) : null}
@@ -1780,6 +1848,9 @@ function App() {
                         <h3>Live approved roles</h3>
                         <p>Open details here, then jump into the dedicated apply page with the role already selected.</p>
                       </div>
+                      <span className="job-browser-count">
+                        {availableRoleCount} live role{availableRoleCount > 1 ? 's' : ''}
+                      </span>
                     </div>
                     <div className="job-card-grid">
                       {(dynamicJobs || []).map((job) => (
@@ -1787,9 +1858,14 @@ function App() {
                           <div className="job-card-top">
                             <div>
                               <strong>{job.label}</strong>
-                              <span>{job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}</span>
+                              <span>{job.location || job.experience || 'Approved role ready for application'}</span>
                             </div>
-                            {form.position === job.value ? <span className="job-card-active">Selected</span> : null}
+                            <div className="job-card-badges">
+                              <span className="job-card-count">
+                                {job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}
+                              </span>
+                              {form.position === job.value ? <span className="job-card-active">Selected</span> : null}
+                            </div>
                           </div>
                           <div className="job-card-body">
                             <p className="job-card-summary">

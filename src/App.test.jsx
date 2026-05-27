@@ -104,7 +104,9 @@ describe('Applyinbox candidate journey', () => {
     });
     window.turnstile = {
       render: vi.fn((_node, options) => {
-        options?.callback?.('verified-turnstile-token');
+        window.setTimeout(() => {
+          options?.callback?.('verified-turnstile-token');
+        }, 0);
         return 'widget-id';
       }),
       reset: vi.fn(),
@@ -185,7 +187,7 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    await screen.findByText('Operations Executive');
+    await screen.findAllByText('Operations Executive');
     fireEvent.click(screen.getByRole('button', { name: 'View Details' }));
     const dialog = screen.getByRole('dialog', { name: 'Operations Executive' });
     expect(dialog).toBeTruthy();
@@ -196,6 +198,26 @@ describe('Applyinbox candidate journey', () => {
       expect(screen.getByLabelText(/Position Applying For/i).value).toBe('OPS-001');
     });
     expect(screen.getByRole('heading', { name: 'Role preference' })).toBeTruthy();
+  });
+
+  it('mirrors live approved roles in the browse-side highlights panel', async () => {
+    global.fetch = buildFetchMock({
+      jobs: [
+        {
+          job_public_code: 'OPS-001',
+          position_title: 'Operations Executive',
+          opening_count: 2,
+          location: 'Indore',
+          job_description: 'Coordinate daily operations and support branch workflows.',
+        },
+      ],
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Live role highlights' })).toBeTruthy();
+    expect(screen.getAllByText('Operations Executive').length).toBeGreaterThan(1);
+    expect(screen.getByText(/same approved roles from the live feed are previewed here/i)).toBeTruthy();
   });
 
   it('resets stale screening answers when the selected live role changes', async () => {
@@ -276,6 +298,9 @@ describe('Applyinbox candidate journey', () => {
     selectFile(screen.getByLabelText(/Resume \/ CV/i), new File(['pdf'], 'resume.pdf', { type: 'application/pdf' }));
     fireEvent.click(screen.getByRole('button', { name: /Continue to verification/i }));
     await screen.findByRole('heading', { name: 'Consent and verification' });
+    await waitFor(() => {
+      expect(window.turnstile.render).toHaveBeenCalled();
+    });
     fireEvent.click(screen.getByLabelText(/I confirm that the information provided is correct/i));
     const submitButton = screen.getByRole('button', { name: /Submit Application/i });
     await waitFor(() => {

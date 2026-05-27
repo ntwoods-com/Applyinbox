@@ -1,11 +1,9 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import {
-  JobDetailsModal,
-  ResumePreviewCard,
-  ScreeningQuestionsSection,
-} from './publicApplyComponents.jsx';
+import { ScreeningQuestionsSection } from './publicApplyComponents.jsx';
+import { JobDetailsModal } from './JobDetailsModal.jsx';
+import { ResumePreviewCard } from './ResumePreviewCard.jsx';
 
 describe('public apply components', () => {
   it('renders job details and Apply Now triggers the selection callback', () => {
