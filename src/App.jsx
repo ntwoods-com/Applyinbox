@@ -1746,8 +1746,8 @@ function App() {
                   {sourceText ? <span className="source-pill show">Source: {sourceDisplayText}</span> : <span className="source-pill" />}
                 </div>
                 <div className="role-grid">
-                  {featuredRoleCards.map((role) => (
-                    <article className={`role-card ${role.isLive ? 'role-card-live' : ''}`} key={role.key}>
+                  {featuredRoleCards.map((role, roleIndex) => (
+                    <article className={`role-card ${role.isLive ? 'role-card-live' : ''}`} key={role.key} style={{ '--card-index': roleIndex }}>
                       {role.isLive ? <span className="role-card-kicker">Live approved role</span> : null}
                       <div className="role-card-heading">
                         <b>{role.title}</b>
@@ -1766,7 +1766,7 @@ function App() {
                 </div>
                 {hiddenLiveRoleCount > 0 ? (
                   <p className="info-panel-note">
-                    +{hiddenLiveRoleCount} more live role{hiddenLiveRoleCount > 1 ? 's' : ''} are listed in the approved roles panel.
+                    +{hiddenLiveRoleCount} more live role{hiddenLiveRoleCount > 1 ? 's' : ''} in the approved roles panel →
                   </p>
                 ) : null}
               </div>
@@ -1853,12 +1853,14 @@ function App() {
                       </span>
                     </div>
                     <div className="job-card-grid job-browser-list">
-                      {(dynamicJobs || []).map((job) => {
+                      {(dynamicJobs || []).map((job, jobIndex) => {
                         const isApplying = form.position === job.value;
                         return (
                           <article
                             key={job.value}
                             className={`job-card ${isApplying ? 'selected' : ''}`}
+                            style={{ '--card-index': jobIndex }}
+                            aria-label={`${job.label} — ${job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}`}
                           >
                             <button
                               type="button"
@@ -1867,7 +1869,7 @@ function App() {
                             >
                               <div className="job-card-top">
                                 <div>
-                                  <strong>{job.label}</strong>
+                                  <strong><span className="job-card-live-dot" aria-hidden="true" />{job.label}</strong>
                                   <span>{job.location || job.experience || 'Approved role ready for application'}</span>
                                 </div>
                                 <div className="job-card-badges">

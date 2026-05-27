@@ -1801,6 +1801,32 @@ button[disabled] { cursor: not-allowed; }
   cursor: pointer;
   font-size: 13px;
   font-weight: 800;
+  transition: color 0.18s ease;
+}
+
+.job-card-link {
+  position: relative;
+  padding: 6px 2px;
+}
+
+.job-card-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 2px;
+  width: 0;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 999px;
+  transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.job-card-link:hover::after {
+  width: 100%;
+}
+
+.job-card-link:hover {
+  color: var(--primary-700);
 }
 
 .job-card-link.danger {
@@ -1808,11 +1834,20 @@ button[disabled] { cursor: not-allowed; }
 }
 
 .job-card-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 40px;
-  padding: 0 14px;
+  padding: 0 18px;
   border-radius: 999px;
   color: #fff;
   background: linear-gradient(135deg, var(--primary), #2f5a4d 64%, var(--accent));
+  transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s ease;
+}
+
+.job-card-apply:hover {
+  box-shadow: 0 8px 24px rgba(44, 138, 239, 0.3), 0 4px 12px rgba(52, 211, 153, 0.15);
+  transform: translateY(-1px);
 }
 
 .job-card-active {
@@ -2915,6 +2950,36 @@ select.invalid {
   --paper: rgba(255, 251, 245, 0.82);
 }
 
+/* ── Keyframe animations ── */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
 body {
   background:
     radial-gradient(circle at 12% 0%, rgba(70, 132, 112, 0.16), transparent 28%),
@@ -3064,11 +3129,16 @@ h1 {
 .info-panel {
   margin-top: 4px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(246, 250, 255, 0.92));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(246, 250, 255, 0.94));
+  backdrop-filter: blur(8px);
 }
 
 .info-panel-title {
   align-items: flex-start;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, rgba(44, 138, 239, 0.18), rgba(52, 211, 153, 0.12), rgba(159, 111, 61, 0.08)) 1;
 }
 
 .info-panel-heading {
@@ -3085,30 +3155,80 @@ h1 {
 }
 
 .role-card {
-  padding: 18px 16px;
+  position: relative;
+  padding: 20px 18px;
   border-color: rgba(36, 74, 61, 0.12);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 251, 255, 0.92));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 251, 255, 0.94));
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease;
+  animation: fadeSlideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 0.08s);
+  cursor: pointer;
+}
+
+.role-card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(135deg, rgba(44, 138, 239, 0.4), rgba(52, 211, 153, 0.4), rgba(159, 111, 61, 0.3));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.role-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(25, 49, 38, 0.12), 0 8px 16px rgba(44, 138, 239, 0.06);
+  border-color: rgba(44, 138, 239, 0.2);
+}
+
+.role-card:hover::after {
+  opacity: 1;
+}
+
+.role-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
 }
 
 .role-card-live {
   display: grid;
   gap: 10px;
   align-content: start;
-  min-height: 208px;
+  min-height: 214px;
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, rgba(34, 197, 94, 0.5), rgba(44, 138, 239, 0.3)) 1;
 }
 
 .role-card-kicker {
   display: inline-flex;
   align-items: center;
+  gap: 7px;
   width: fit-content;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  color: var(--wood-warm);
-  background: rgba(159, 111, 61, 0.1);
+  color: #15803d;
+  background: linear-gradient(135deg, rgba(220, 252, 231, 0.9), rgba(187, 247, 208, 0.7));
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.role-card-kicker::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulseGlow 2s ease-in-out infinite;
+  flex-shrink: 0;
 }
 
 .role-card-heading {
@@ -3119,17 +3239,24 @@ h1 {
 }
 
 .role-card b {
-  font-size: 15px;
+  font-size: 15.5px;
+  letter-spacing: -0.01em;
+  transition: color 0.18s ease;
+}
+
+.role-card:hover b {
+  color: var(--primary-700);
 }
 
 .role-card-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  color: var(--wood-ink);
-  background: rgba(36, 74, 61, 0.08);
+  color: #0e4a8f;
+  background: linear-gradient(135deg, rgba(232, 244, 253, 0.95), rgba(219, 234, 254, 0.85));
+  border: 1px solid rgba(44, 138, 239, 0.12);
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
@@ -3145,20 +3272,42 @@ h1 {
 .role-card-meta span {
   display: inline-flex;
   align-items: center;
-  padding: 7px 10px;
+  padding: 7px 12px;
   border-radius: 999px;
-  color: #355347;
-  background: rgba(244, 247, 252, 0.92);
-  border: 1px solid rgba(36, 74, 61, 0.08);
+  color: #2d4a3e;
+  background: rgba(244, 247, 252, 0.95);
+  border: 1px solid rgba(36, 74, 61, 0.1);
   font-size: 12px;
   font-weight: 700;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.role-card:hover .role-card-meta span {
+  background: rgba(232, 244, 253, 0.6);
+  border-color: rgba(44, 138, 239, 0.14);
 }
 
 .info-panel-note {
-  margin: 14px 2px 0;
-  color: var(--wood-soft);
-  font-size: 12px;
-  line-height: 1.6;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 16px 2px 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--primary-700);
+  background: rgba(232, 244, 253, 0.6);
+  border: 1px solid rgba(44, 138, 239, 0.12);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.info-panel-note:hover {
+  color: var(--primary-800);
+  background: rgba(219, 234, 254, 0.7);
+  border-color: rgba(44, 138, 239, 0.22);
 }
 
 .application-shell {
@@ -3401,11 +3550,12 @@ h1 {
 
 .job-browser {
   margin-top: 18px;
-  padding: 18px;
-  border: 1px solid rgba(36, 74, 61, 0.12);
+  padding: 20px;
+  border: 1px solid rgba(36, 74, 61, 0.1);
   border-radius: 24px;
   background:
-    linear-gradient(180deg, rgba(245, 248, 255, 0.9), rgba(255, 252, 247, 0.88));
+    linear-gradient(180deg, rgba(245, 248, 255, 0.92), rgba(255, 252, 247, 0.9));
+  backdrop-filter: blur(8px);
 }
 
 .job-browser-header {
@@ -3413,6 +3563,10 @@ h1 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, rgba(44, 138, 239, 0.2), rgba(52, 211, 153, 0.15), rgba(159, 111, 61, 0.1)) 1;
 }
 
 .job-browser-count,
@@ -3420,10 +3574,11 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
-  color: var(--wood-ink);
-  background: rgba(36, 74, 61, 0.08);
+  color: #0e4a8f;
+  background: linear-gradient(135deg, rgba(232, 244, 253, 0.95), rgba(219, 234, 254, 0.8));
+  border: 1px solid rgba(44, 138, 239, 0.12);
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
@@ -3442,8 +3597,27 @@ h1 {
 .job-browser-list {
   max-height: 760px;
   overflow: auto;
-  padding-right: 4px;
+  padding-right: 6px;
   align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(44, 138, 239, 0.18) transparent;
+}
+
+.job-browser-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.job-browser-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.job-browser-list::-webkit-scrollbar-thumb {
+  background: rgba(44, 138, 239, 0.18);
+  border-radius: 999px;
+}
+
+.job-browser-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(44, 138, 239, 0.32);
 }
 
 .job-card {
@@ -3457,18 +3631,25 @@ h1 {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 255, 0.92));
   box-shadow: 0 14px 28px rgba(25, 49, 38, 0.06);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease;
+  animation: fadeSlideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--card-index, 0) * 0.06s);
 }
 
 .job-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   border-color: rgba(44, 138, 239, 0.28);
-  box-shadow: 0 22px 36px rgba(25, 49, 38, 0.1);
+  box-shadow: 0 24px 48px rgba(25, 49, 38, 0.11), 0 8px 16px rgba(44, 138, 239, 0.06);
 }
 
 .job-card.selected {
   border-color: rgba(22, 131, 90, 0.3);
   box-shadow: 0 22px 40px rgba(22, 131, 90, 0.12);
+}
+
+.job-card:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .job-card-surface {
@@ -3496,6 +3677,23 @@ h1 {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  transition: color 0.18s ease;
+}
+
+.job-card:hover .job-card-top strong {
+  color: var(--primary-700);
+}
+
+.job-card-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  margin-right: 6px;
+  vertical-align: middle;
+  animation: pulseGlow 2.2s ease-in-out infinite;
+  flex-shrink: 0;
 }
 
 .job-card-body {
@@ -3523,18 +3721,28 @@ h1 {
 .job-card-meta span {
   display: inline-flex;
   align-items: center;
-  padding: 7px 10px;
+  padding: 7px 12px;
   border-radius: 999px;
-  color: #355347;
-  background: rgba(244, 247, 252, 0.92);
-  border: 1px solid rgba(36, 74, 61, 0.08);
+  color: #2d4a3e;
+  background: rgba(244, 247, 252, 0.95);
+  border: 1px solid rgba(36, 74, 61, 0.1);
   font-size: 12px;
   font-weight: 700;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.job-card:hover .job-card-meta span {
+  background: rgba(232, 244, 253, 0.5);
+  border-color: rgba(44, 138, 239, 0.12);
 }
 
 .job-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 8px;
 }
 
 .step-actions {
