@@ -2609,7 +2609,10 @@ function App() {
 
         {!isApplyView ? (
           <>
+            <WhyApplySection />
             <ProcessSection />
+            <StatusCheckSection />
+            <FAQSection />
             <section className="bottom-cta-section">
               <div className="page-shell cta-grid">
                 <article className="cta-card cta-status">
