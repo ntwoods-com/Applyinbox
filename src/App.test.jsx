@@ -275,7 +275,8 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /Role and screening/i }));
+    await openApplicationPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Role preference/i }));
     const positionSelect = await screen.findByLabelText(/Position Applying For/i);
     fireEvent.change(positionSelect, { target: { value: 'OPS-001' } });
     const firstQuestion = await screen.findByLabelText('Notice period?');
