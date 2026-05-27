@@ -62,9 +62,9 @@ function getApplicationEmailInput() {
 }
 
 async function openApplicationPage() {
-  const startLink = screen.queryByRole('link', { name: /Start Application/i });
-  if (startLink) {
-    fireEvent.click(startLink);
+  const startLinks = screen.queryAllByRole('link', { name: /Apply Now/i });
+  if (startLinks.length > 0) {
+    fireEvent.click(startLinks[0]);
   }
   await screen.findByRole('heading', { name: 'Submit your application' });
 }
@@ -129,7 +129,9 @@ describe('Applyinbox candidate journey', () => {
 
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /Role and screening/i }));
+    await openApplicationPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Role preference/i }));
+    
     const positionSelect = await screen.findByLabelText(/Position Applying For/i);
     expect(positionSelect).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Accountant' })).toBeTruthy();

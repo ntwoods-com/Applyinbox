@@ -1696,233 +1696,164 @@ function App() {
       </header>
 
       <main id="top">
-        <section className={`hero ${isApplyView ? 'hero-apply' : ''}`} aria-labelledby={isApplyView ? 'apply-page-title' : 'hero-title'}>
-          <div className={`page-shell hero-grid ${isApplyView ? 'hero-grid-apply' : ''}`}>
-            {!isApplyView ? (
-            <div className="hero-copy">
-              <span className="eyebrow">
-                <span className="eyebrow-dot" aria-hidden="true"></span>
-                Hiring across business operations
-              </span>
-              <h1 id="hero-title">
-                Build your career with <span className="hero-gradient-text">NT Woods</span>
-              </h1>
-              <p className="hero-lead">
-                Submit your profile for available roles in Accounts, HR, Sales, Marketing, Admin and IT support. Our HR team will review your application and connect with shortlisted candidates.
-              </p>
-
-              <div className="hero-actions">
-                <a className="btn-link-primary" href="#apply-form" onClick={(event) => handleApplyNavigation(event, '', 'contact')}>
-                  <Icon className="icon-inline" name="send" /> Start Application
-                </a>
-                <a className="btn-link-secondary" href="#process" onClick={(event) => handleBrowseNavigation(event, 'process')}>View Process</a>
-              </div>
-
-              <div className="hero-stats" aria-label="Application overview">
-                {heroStats.map((item) => (
-                  <article className="hero-stat-card" key={item.label}>
-                    <strong>{item.value}</strong>
-                    <span>{item.label}</span>
-                    <small>{item.note}</small>
-                  </article>
-                ))}
-              </div>
-
-              <div className="hero-proof-grid" aria-label="Application highlights">
-                {heroProofItems.map(([title, note]) => (
-                  <article className="hero-proof-card" key={title}>
-                    <strong>{title}</strong>
-                    <span>{note}</span>
-                  </article>
-                ))}
-              </div>
-
-              <div className="info-panel" id="roles">
-                <div className="info-panel-title">
-                  <div className="info-panel-heading">
-                    <h2>{rolePanelTitle}</h2>
-                    <p className="info-panel-copy">{rolePanelDescription}</p>
-                  </div>
-                  {sourceText ? <span className="source-pill show">Source: {sourceDisplayText}</span> : <span className="source-pill" />}
-                </div>
-                <div className="role-grid">
-                  {featuredRoleCards.map((role, roleIndex) => (
-                    <article className={`role-card ${role.isLive ? 'role-card-live' : ''}`} key={role.key} style={{ '--card-index': roleIndex }}>
-                      {role.isLive ? <span className="role-card-kicker">Live approved role</span> : null}
-                      <div className="role-card-heading">
-                        <b>{role.title}</b>
-                        {role.openingsLabel ? <span className="role-card-count">{role.openingsLabel}</span> : null}
-                      </div>
-                      <small>{role.description}</small>
-                      {role.meta.length > 0 ? (
-                        <div className="role-card-meta" aria-label={`${role.title} quick facts`}>
-                          {role.meta.map((item) => (
-                            <span key={`${role.key}-${item}`}>{item}</span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-                {hiddenLiveRoleCount > 0 ? (
-                  <p className="info-panel-note">
-                    +{hiddenLiveRoleCount} more live role{hiddenLiveRoleCount > 1 ? 's' : ''} in the approved roles panel →
+        {!isApplyView ? (
+          <>
+            <section className="hero-section" aria-labelledby="hero-title">
+              <div className="page-shell hero-grid">
+                <div className="hero-copy">
+                  <span className="eyebrow">
+                    <span className="eyebrow-dot" aria-hidden="true"></span>
+                    Hiring across business operations
+                  </span>
+                  <h1 id="hero-title">
+                    Build your career with <span className="hero-gradient-text">NT Woods</span>
+                  </h1>
+                  <p className="hero-lead">
+                    Submit your profile for available roles in Accounts, HR, Sales, Marketing, Admin and IT Support. Our HR team will review your application and connect with shortlisted candidates.
                   </p>
-                ) : null}
-              </div>
-            </div>
-            ) : null}
 
-            <aside
-              className={`application-shell ${isApplyView ? 'application-shell-full' : 'application-shell-preview'}`}
-              id={isApplyView ? 'apply-form' : 'application'}
-              aria-label={isApplyView ? 'Application form' : 'Application preview'}
-            >
-              {!isApplyView ? (
-              <div className="application-card application-preview-card">
-                <div className="application-stage-rail" aria-label="Application overview">
-                  <div>
-                    <span className="application-stage-kicker">Guided application</span>
-                    <strong>Open the full submit flow on the next screen</strong>
-                    <div className="application-stage-counter">4 guided steps</div>
-                    <p>
-                      Browse active openings here, then move into a dedicated application screen for contact details,
-                      role screening, CV upload, and verification.
-                    </p>
-                  </div>
-                  <div className="application-stage-pills">
-                    <span className="application-stage-pill">{usingDynamicJobs ? 'Live roles synced' : 'Fallback roles ready'}</span>
-                    <span className="application-stage-pill">Manual HR review</span>
-                    <span className="application-stage-pill">Verification required</span>
-                  </div>
-                </div>
-
-                <div className="preview-card-header">
-                  <div>
-                    <h2>Choose a role and continue</h2>
-                    <p className="subtitle">`Apply Now` opens a dedicated application page so the full submit flow stays focused and easier to complete.</p>
-                  </div>
-                  <div className="preview-card-actions">
+                  <div className="hero-actions">
                     <a className="btn btn-primary" href="#apply-form" onClick={(event) => handleApplyNavigation(event, '', 'contact')}>
-                      <Icon className="btn-icon" name="send" />
-                      <span>Open application form</span>
+                      <Icon className="icon-inline" name="send" /> Apply Now
+                    </a>
+                    <a className="btn-link-secondary" href="#process" onClick={(event) => handleBrowseNavigation(event, 'process')}>
+                      View Hiring Process <Icon className="icon-inline" name="arrowRight" />
                     </a>
                   </div>
                 </div>
 
-                <div className="security-row" aria-label="Security notes">
-                  <span className="security-badge">
-                    <Icon className="icon-inline" name="lock" />
-                    Protected application submission
-                  </span>
-                  <span className="security-badge secondary">
-                    <Icon className="icon-inline" name="shield" />
-                    Verification enabled
-                  </span>
-                </div>
-
-                <div className="progress-grid application-preview-grid" aria-label="Application steps">
-                  {checklistItems.map(([step, title, note, ready, stepKey]) => (
-                    <button
-                      type="button"
-                      className={`progress-card ${ready ? 'complete' : ''} ${currentStep === stepKey ? 'current' : ''}`}
-                      key={title}
-                      onClick={() => openApplyPage('', stepKey)}
-                    >
-                      <span className="progress-icon" aria-hidden="true">
-                        <Icon className="icon-inline" name={ready ? 'checkCircle' : currentStep === stepKey ? 'arrowRight' : 'briefcase'} />
-                      </span>
-                      <div>
-                        <small className="progress-stepLabel">{step}</small>
-                        <strong>{title}</strong>
-                        <span>{note}</span>
+                <div className="hero-steps-card">
+                  <h3>How our application works</h3>
+                  <div className="hero-steps-list">
+                    <div className="hero-step">
+                      <div className="hero-step-num">1</div>
+                      <div className="hero-step-content">
+                        <strong>Choose a role</strong>
+                        <p>Browse live openings and select a role that matches your skills.</p>
                       </div>
-                    </button>
-                  ))}
+                    </div>
+                    <div className="hero-step">
+                      <div className="hero-step-num">2</div>
+                      <div className="hero-step-content">
+                        <strong>Submit your application</strong>
+                        <p>Fill in your details and upload your resume securely.</p>
+                      </div>
+                    </div>
+                    <div className="hero-step">
+                      <div className="hero-step-num">3</div>
+                      <div className="hero-step-content">
+                        <strong>HR reviews your profile</strong>
+                        <p>Our team manually reviews your application and documents.</p>
+                      </div>
+                    </div>
+                    <div className="hero-step">
+                      <div className="hero-step-num">4</div>
+                      <div className="hero-step-content">
+                        <strong>We reach out</strong>
+                        <p>Shortlisted candidates will be contacted for next steps.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="stats-strip">
+              <div className="page-shell stats-grid">
+                <div className="stat-item">
+                  <div className="stat-icon"><Icon name="briefcase" /></div>
+                  <div>
+                    <strong>{availableRoleCount}</strong>
+                    <span>Live Roles</span>
+                  </div>
+                </div>
+                <div className="stat-divider"></div>
+                <div className="stat-item">
+                  <div className="stat-icon"><Icon name="user" /></div>
+                  <div>
+                    <strong>Manual</strong>
+                    <span>HR Review</span>
+                  </div>
+                </div>
+                <div className="stat-divider"></div>
+                <div className="stat-item">
+                  <div className="stat-icon"><Icon name="shield" /></div>
+                  <div>
+                    <strong>Secure</strong>
+                    <span>CV Upload</span>
+                  </div>
+                </div>
+                <div className="stat-divider"></div>
+                <div className="stat-item">
+                  <div className="stat-icon"><Icon name="send" /></div>
+                  <div>
+                    <strong>Direct</strong>
+                    <span>Website Application</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="roles-section" id="roles">
+              <div className="page-shell">
+                <div className="section-header roles-header">
+                  <div>
+                    <span className="eyebrow"><span className="eyebrow-dot" aria-hidden="true"></span> LIVE APPROVED ROLES</span>
+                    <h2>Explore current openings</h2>
+                    <p>Select a role to view details and apply</p>
+                  </div>
+                  <a href="#roles" className="btn-link-secondary" onClick={(event) => handleBrowseNavigation(event, 'roles')}>View all roles <Icon className="icon-inline" name="arrowRight" /></a>
                 </div>
 
                 {usingDynamicJobs ? (
-                  <div className="job-browser" aria-label="Active approved jobs">
-                    <div className="job-browser-header">
-                      <div>
-                        <h3>Live approved roles</h3>
-                        <p>Open details here, then jump into the dedicated apply page with the role already selected.</p>
-                      </div>
-                      <span className="job-browser-count">
-                        {availableRoleCount} live role{availableRoleCount > 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="job-card-grid job-browser-list">
-                      {(dynamicJobs || []).map((job, jobIndex) => {
-                        const isApplying = form.position === job.value;
-                        return (
-                          <article
-                            key={job.value}
-                            className={`job-card ${isApplying ? 'selected' : ''}`}
-                            style={{ '--card-index': jobIndex }}
-                            aria-label={`${job.label} — ${job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}`}
-                          >
-                            <button
-                              type="button"
-                              className="job-card-surface"
-                              onClick={() => setActiveJobModal(job)}
-                            >
-                              <div className="job-card-top">
-                                <div>
-                                  <strong><span className="job-card-live-dot" aria-hidden="true" />{job.label}</strong>
-                                  <span>{job.location || job.experience || 'Approved role ready for application'}</span>
-                                </div>
-                                <div className="job-card-badges">
-                                  <span className="job-card-count">
-                                    {job.openingCount > 0 ? `${job.openingCount} opening${job.openingCount > 1 ? 's' : ''}` : 'Open role'}
-                                  </span>
-                                  {isApplying ? <span className="job-card-active">Selected</span> : null}
-                                </div>
-                              </div>
-                              <div className="job-card-body">
-                                <p className="job-card-summary">
-                                  {job.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the application form now.'}
-                                </p>
-                                <div className="job-card-meta">
-                                  {job.location ? <span>Location: {job.location}</span> : null}
-                                  {job.experience ? <span>Experience: {job.experience}</span> : null}
-                                  <span>
-                                    {Array.isArray(job.screeningQuestions) && job.screeningQuestions.length > 0
-                                      ? `${job.screeningQuestions.length} screening question${job.screeningQuestions.length > 1 ? 's' : ''}`
-                                      : 'No pre-screening'}
-                                  </span>
-                                </div>
-                              </div>
-                            </button>
-                            <div className="job-card-actions">
-                              <button
-                                type="button"
-                                className="job-card-link"
-                                onClick={() => setActiveJobModal(job)}
-                              >
-                                <Icon className="icon-inline" name="search" /> View Details
-                              </button>
-                              <button
-                                type="button"
-                                className="job-card-apply"
-                                onClick={() => focusApplicationForm(job.value)}
-                              >
-                                <Icon className="icon-inline" name="send" /> Apply Now
-                              </button>
+                  <div className="job-grid-full">
+                    {(dynamicJobs || []).map((job, jobIndex) => {
+                      const isApplying = form.position === job.value;
+                      return (
+                        <article className={`job-card ${isApplying ? 'selected' : ''}`} key={job.value} style={{ '--card-index': jobIndex }}>
+                          <div className="job-card-icon">
+                            <Icon name={job.department === 'Sales & Marketing' ? 'user' : job.department === 'Operations' ? 'briefcase' : job.department === 'Accounts & Finance' ? 'file' : 'briefcase'} />
+                          </div>
+                          <div className="job-card-content">
+                            <h3>{job.label}</h3>
+                            <div className="job-card-depts">
+                              <span className="dept-tag">{job.department || 'Operations'}</span>
+                              <span className="opening-tag">{job.openingCount > 0 ? `${job.openingCount} Opening${job.openingCount > 1 ? 's' : ''}` : '1 Opening'}</span>
                             </div>
-                          </article>
-                        );
-                      })}
-                    </div>
+                            <p className="job-card-summary">
+                              {job.jobDescription || 'Public-safe role details are limited for this opening, but you can still continue with the application form now.'}
+                            </p>
+                            <span className="no-screening-tag">No pre-screening</span>
+                          </div>
+                          <div className="job-card-actions">
+                            <button type="button" className="job-card-link" onClick={() => setActiveJobModal(job)}>
+                              View Details
+                            </button>
+                            <button type="button" className="job-card-apply" onClick={() => focusApplicationForm(job.value)}>
+                              <Icon className="icon-inline" name="send" /> Apply Now
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="preview-fallback-panel">
                     <strong>Live roles are temporarily unavailable.</strong>
-                    <p>Fallback role selection is still available inside the application page, so candidates can continue without losing the apply flow.</p>
+                    <p>Fallback role selection is available inside the application page so you can continue the apply flow.</p>
                   </div>
                 )}
+                
+                <div className="roles-more-action">
+                  <a href="#roles" className="btn-link-secondary" onClick={(event) => handleBrowseNavigation(event, 'roles')}>+ View more roles <Icon className="icon-inline" name="arrowRight" /></a>
+                </div>
               </div>
-              ) : (
+            </section>
+          </>
+        ) : (
+          <section className="section apply-section" id="apply-form" aria-label="Application form">
+            <div className="page-shell">
+              <aside className="application-shell application-shell-full">
               <div ref={applicationCardRef} className="application-card">
                 <div className="application-page-header">
                   <button type="button" className="btn-link-secondary application-page-back" onClick={() => openBrowsePage('roles')}>
@@ -2427,6 +2358,7 @@ function App() {
             </aside>
           </div>
         </section>
+      )}
 
         <JobDetailsModal
           job={activeJobModal}
@@ -2517,12 +2449,29 @@ function App() {
         ) : null} */}
 
         {!isApplyView ? (
-        <>
-        <StatusCheckSection />
-        <WhyApplySection />
-        <ProcessSection />
-        <FAQSection />
-        </>
+          <>
+            <ProcessSection />
+            <section className="bottom-cta-section">
+              <div className="page-shell cta-grid">
+                <article className="cta-card cta-status">
+                  <div className="cta-icon"><Icon name="search" /></div>
+                  <div className="cta-content">
+                    <h3>Check your application status</h3>
+                    <p>Track your application and stay updated</p>
+                    <a href="#status-check" className="btn-link-primary" onClick={(event) => handleBrowseNavigation(event, 'status-check')}>Check Status <Icon className="icon-inline" name="arrowRight" /></a>
+                  </div>
+                </article>
+                <article className="cta-card cta-faq">
+                  <div className="cta-icon"><Icon name="help" /></div>
+                  <div className="cta-content">
+                    <h3>Have questions?</h3>
+                    <p>Find answers to common questions</p>
+                    <a href="#faq" className="btn-link-primary" onClick={(event) => handleBrowseNavigation(event, 'faq')}>View FAQ <Icon className="icon-inline" name="arrowRight" /></a>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </>
         ) : null}
       </main>
 
