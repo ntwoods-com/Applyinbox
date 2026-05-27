@@ -220,7 +220,7 @@ describe('Applyinbox candidate journey', () => {
     expect(screen.getByText(/same approved roles from the live feed are previewed here/i)).toBeTruthy();
   });
 
-  it('shows proper selected-role details when a live role card is clicked', async () => {
+  it('opens the role details modal when a live role card is clicked', async () => {
     global.fetch = buildFetchMock({
       jobs: [
         {
@@ -246,14 +246,13 @@ describe('Applyinbox candidate journey', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Live role highlights' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Operations Executive', level: 4 })).toBeTruthy();
+    expect(screen.getAllByText('Operations Executive').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /Quality Analyst/i }));
 
-    const detailPanel = screen.getByLabelText('Selected role details');
-    expect(await within(detailPanel).findByRole('heading', { name: 'Quality Analyst', level: 4 })).toBeTruthy();
-    expect(within(detailPanel).getByText(/Review production output and maintain quality documentation/i)).toBeTruthy();
-    expect(within(detailPanel).getByText(/Can you work shifts/i)).toBeTruthy();
+    const dialog = await screen.findByRole('dialog', { name: 'Quality Analyst' });
+    expect(within(dialog).getByText(/Review production output and maintain quality documentation/i)).toBeTruthy();
+    expect(within(dialog).getByText(/Can you work shifts/i)).toBeTruthy();
   });
 
   it('resets stale screening answers when the selected live role changes', async () => {
