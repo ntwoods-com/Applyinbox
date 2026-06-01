@@ -2051,111 +2051,114 @@ function App() {
           <section className="section apply-section" id="apply-form" aria-label="Application form">
             <div className="page-shell apply-auth-grid">
               <aside className="application-shell application-shell-form">
-              <div ref={applicationCardRef} className="application-card application-card-auth">
-                <div className="application-page-header">
-                  <span className="apply-kicker-badge">
-                    <Icon className="icon-inline" name="shield" />
-                    Welcome candidate
-                  </span>
-                  <div>
-                    <span className="application-stage-kicker">Dedicated application page</span>
-                    <h1 id="apply-page-title" className="application-page-title">Complete your application</h1>
-                    <p className="application-page-copy">Share your details, choose the right role, upload your CV, and finish the secure verification flow in one place.</p>
-                  </div>
-                </div>
-                <div className="application-stage-rail" aria-label="Current form status">
-                  <div>
-                    <span className="application-stage-kicker">Candidate workspace</span>
-                    <strong>{currentStepLabel}</strong>
-                    <div className="application-stage-counter">Step {visibleStepIndex + 1} of {STEP_ORDER.length}</div>
-                    <p>
-                      {usingDynamicJobs
-                        ? 'This form is using live approved role data from the HRMS.'
-                        : 'Fallback roles are active so you can continue even if the live jobs feed is unavailable.'}
-                    </p>
-                  </div>
-                  <div className="application-stage-pills">
-                    <span className="application-stage-pill">{usingDynamicJobs ? 'Live roles' : 'Fallback roles'}</span>
-                    <span className="application-stage-pill">{selectedFile ? fileTypeLabel(selectedFile) : 'CV pending'}</span>
-                    <span className="application-stage-pill">{verificationLabel}</span>
-                  </div>
-                </div>
-                {alert && (
-                  <div ref={alertRef} className={`alert ${alert.type === 'success' ? 'alert-success' : 'alert-error'}`} role="alert" aria-live="polite">
-                    <span className="alert-icon" aria-hidden="true">
-                      <Icon className="icon-inline" name={alert.type === 'success' ? 'checkCircle' : 'alert'} />
+                <div ref={applicationCardRef} className="application-card application-card-auth">
+                  <div className="application-page-header">
+                    <span className="apply-kicker-badge">
+                      <Icon className="icon-inline" name="shield" />
+                      Candidate workspace
                     </span>
-                    <span>{alert.message}</span>
+                    <div>
+                      <span className="application-stage-kicker">NT Woods recruitment desk</span>
+                      <h1 id="apply-page-title" className="application-page-title">Complete your application</h1>
+                      <p className="application-page-copy">Use this guided workspace to share your details, choose the right role, upload your CV, and finish secure verification.</p>
+                    </div>
                   </div>
-                )}
 
-                {!submitted ? (
-                  <div id="form-section">
-                    <div className="form-header">
-                      <div className="form-header-top">
-                        <div className="form-icon" aria-hidden="true">
-                          <Icon className="icon-lg" name="briefcase" />
-                        </div>
-                        <span className="form-tag">Manual HR review</span>
+                  <div className="application-auth-panel">
+                    <div className="application-stage-rail" aria-label="Current form status">
+                      <div>
+                        <span className="application-stage-kicker">Progress overview</span>
+                        <strong>{currentStepLabel}</strong>
+                        <div className="application-stage-counter">Step {visibleStepIndex + 1} of {STEP_ORDER.length}</div>
+                        <p>
+                          {usingDynamicJobs
+                            ? 'Live approved role data is available in this application workspace.'
+                            : 'Fallback roles are active so you can continue even if the live jobs feed is unavailable.'}
+                        </p>
                       </div>
-                      <h2>Submit your application</h2>
-                      <p className="subtitle">Fill in your basic details, upload your CV, and complete verification before final submission.</p>
-                      <div className="form-brief-grid" aria-label="Application summary">
-                        {formHighlights.map(([label, value]) => (
-                          <div className="form-brief-card" key={label}>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                          </div>
-                        ))}
+                      <div className="application-stage-pills">
+                        <span className="application-stage-pill">{usingDynamicJobs ? 'Live roles' : 'Fallback roles'}</span>
+                        <span className="application-stage-pill">{selectedFile ? fileTypeLabel(selectedFile) : 'CV pending'}</span>
+                        <span className="application-stage-pill">{verificationLabel}</span>
                       </div>
-                      <div className="security-row" aria-label="Security notes">
-                        <span className="security-badge">
-                          <Icon className="icon-inline" name="lock" />
-                          Protected application submission
-                        </span>
-                        <span className="security-badge secondary">
-                          <Icon className="icon-inline" name="shield" />
-                          Verification enabled
-                        </span>
-                      </div>
-                      <div className="progress-grid" aria-label="Application readiness">
-                        {checklistItems.map(([step, title, note, ready, stepKey]) => (
-                          <button
-                            type="button"
-                            className={`progress-card ${ready ? 'complete' : ''} ${visibleStep === stepKey ? 'current' : ''}`}
-                            key={title}
-                            aria-current={visibleStep === stepKey ? 'step' : undefined}
-                            onClick={() => focusStep(stepKey)}
-                          >
-                            <span className="progress-icon" aria-hidden="true">
-                              <Icon className="icon-inline" name={ready ? 'checkCircle' : visibleStep === stepKey ? 'arrowRight' : 'briefcase'} />
-                            </span>
-                            <div>
-                              <small className="progress-stepLabel">{step}</small>
-                              <strong>{title}</strong>
-                              <span>{note}</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                      {selectedPosition?.value ? (
-                        <div className="apply-selected-role-banner" aria-live="polite">
-                          <strong>Selected role: {selectedPosition.label}</strong>
-                          <span>
-                            {selectedPosition.dynamic
-                              ? 'This role was preloaded from the live approved jobs list. You can change it in Step 2 if needed.'
-                              : 'You can still change the role in Step 2 before final submission.'}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="apply-selected-role-banner muted">
-                          <strong>No role selected yet</strong>
-                          <span>{usingDynamicJobs ? 'Choose a live role in Step 2 to continue with screening and submission.' : 'Fallback role options are available in Step 2 so you can continue with the application.'}</span>
-                        </div>
-                      )}
                     </div>
 
-                    <form id="apply-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
+                    {alert && (
+                      <div ref={alertRef} className={`alert ${alert.type === 'success' ? 'alert-success' : 'alert-error'}`} role="alert" aria-live="polite">
+                        <span className="alert-icon" aria-hidden="true">
+                          <Icon className="icon-inline" name={alert.type === 'success' ? 'checkCircle' : 'alert'} />
+                        </span>
+                        <span>{alert.message}</span>
+                      </div>
+                    )}
+
+                    {!submitted ? (
+                      <div id="form-section" className="application-form-shell">
+                        <div className="form-header">
+                          <div className="form-header-top">
+                            <div className="form-icon" aria-hidden="true">
+                              <Icon className="icon-lg" name="briefcase" />
+                            </div>
+                            <span className="form-tag">Manual HR review</span>
+                          </div>
+                          <h2>Submit your application</h2>
+                          <p className="subtitle">Enter the basics once, then move through role selection, resume upload, and final verification with a cleaner candidate experience.</p>
+                          <div className="form-brief-grid" aria-label="Application summary">
+                            {formHighlights.map(([label, value]) => (
+                              <div className="form-brief-card" key={label}>
+                                <span>{label}</span>
+                                <strong>{value}</strong>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="security-row" aria-label="Security notes">
+                            <span className="security-badge">
+                              <Icon className="icon-inline" name="lock" />
+                              Protected application submission
+                            </span>
+                            <span className="security-badge secondary">
+                              <Icon className="icon-inline" name="shield" />
+                              Verification enabled
+                            </span>
+                          </div>
+                          <div className="progress-grid" aria-label="Application readiness">
+                            {checklistItems.map(([step, title, note, ready, stepKey]) => (
+                              <button
+                                type="button"
+                                className={`progress-card ${ready ? 'complete' : ''} ${visibleStep === stepKey ? 'current' : ''}`}
+                                key={title}
+                                aria-current={visibleStep === stepKey ? 'step' : undefined}
+                                onClick={() => focusStep(stepKey)}
+                              >
+                                <span className="progress-icon" aria-hidden="true">
+                                  <Icon className="icon-inline" name={ready ? 'checkCircle' : visibleStep === stepKey ? 'arrowRight' : 'briefcase'} />
+                                </span>
+                                <div>
+                                  <small className="progress-stepLabel">{step}</small>
+                                  <strong>{title}</strong>
+                                  <span>{note}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                          {selectedPosition?.value ? (
+                            <div className="apply-selected-role-banner" aria-live="polite">
+                              <strong>Selected role: {selectedPosition.label}</strong>
+                              <span>
+                                {selectedPosition.dynamic
+                                  ? 'This role was preloaded from the live approved jobs list. You can change it in Step 2 if needed.'
+                                  : 'You can still change the role in Step 2 before final submission.'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="apply-selected-role-banner muted">
+                              <strong>No role selected yet</strong>
+                              <span>{usingDynamicJobs ? 'Choose a live role in Step 2 to continue with screening and submission.' : 'Fallback role options are available in Step 2 so you can continue with the application.'}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <form id="apply-form" noValidate onSubmit={handleSubmit} aria-busy={isSubmitting}>
                       <div className="hp-field" aria-hidden="true">
                         <label htmlFor="_hp_check">Leave this empty</label>
                         <input ref={hpRef} type="text" id="_hp_check" name="_hp_check" tabIndex="-1" autoComplete="off" aria-label="Honeypot" />
@@ -2494,81 +2497,97 @@ function App() {
                       <p className="form-footnote">Submit your CV and contact details only once for the same role. Verification must be completed before submission.</p>
                       </section>
                       ) : null}
-                    </form>
-                  </div>
-                ) : (
-                  <div id="success" className="success-screen" aria-live="polite">
-                    <div className="success-icon" aria-hidden="true">
-                      <Icon className="icon-xl" name="check" />
-                    </div>
-                    <div className="success-message">
-                      <h2>Application submitted successfully</h2>
-                      <p>Thank you for applying. Our HR team will review your application and contact you if your profile matches the current requirement.</p>
-                      {successApplyId ? <div className="application-id-box">Application ID: <span>{successApplyId}</span></div> : null}
-                      <div className="success-summary-grid">
-                        {submittedContext.positionTitle ? (
-                          <div className="success-summary-card">
-                            <span>Position applied for</span>
-                            <strong>{submittedContext.positionTitle}</strong>
+                        </form>
+                      </div>
+                    ) : (
+                      <div id="success" className="success-screen" aria-live="polite">
+                        <div className="success-icon" aria-hidden="true">
+                          <Icon className="icon-xl" name="check" />
+                        </div>
+                        <div className="success-message">
+                          <h2>Application submitted successfully</h2>
+                          <p>Thank you for applying. Our HR team will review your application and contact you if your profile matches the current requirement.</p>
+                          {successApplyId ? <div className="application-id-box">Application ID: <span>{successApplyId}</span></div> : null}
+                          <div className="success-summary-grid">
+                            {submittedContext.positionTitle ? (
+                              <div className="success-summary-card">
+                                <span>Position applied for</span>
+                                <strong>{submittedContext.positionTitle}</strong>
+                              </div>
+                            ) : null}
+                            <div className="success-summary-card">
+                              <span>Review path</span>
+                              <strong>Manual HR review</strong>
+                            </div>
+                            <div className="success-summary-card">
+                              <span>Source</span>
+                              <strong>{submittedContext.sourceDisplay || 'Website / Direct'}</strong>
+                            </div>
                           </div>
-                        ) : null}
-                        <div className="success-summary-card">
-                          <span>Review path</span>
-                          <strong>Manual HR review</strong>
+                          <div className="success-actionRow">
+                            {successApplyId ? (
+                              <button type="button" className="btn-link-secondary success-actionButton" onClick={handleCopyApplyId}>
+                                Copy Application ID
+                              </button>
+                            ) : null}
+                            {showWhatsappButton ? (
+                              <a
+                                className="btn-link-primary success-actionButton"
+                                href={whatsappConfirmationUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Confirm on WhatsApp
+                                <Icon className="icon-inline" name="arrowRight" />
+                              </a>
+                            ) : null}
+                          </div>
+                          {copyFeedback ? <div className="success-inlineFeedback">{copyFeedback}</div> : null}
+                          <div className="success-details">
+                            <p><strong>What happens next?</strong></p>
+                            <ul className="success-list">
+                              <li>Your application will be reviewed by the HR team.</li>
+                              <li>Shortlisted candidates will be contacted for the next stage.</li>
+                              <li>Please keep your phone and email available for updates.</li>
+                            </ul>
+                          </div>
                         </div>
-                        <div className="success-summary-card">
-                          <span>Source</span>
-                          <strong>{submittedContext.sourceDisplay || 'Website / Direct'}</strong>
-                        </div>
                       </div>
-                      <div className="success-actionRow">
-                        {successApplyId ? (
-                          <button type="button" className="btn-link-secondary success-actionButton" onClick={handleCopyApplyId}>
-                            Copy Application ID
-                          </button>
-                        ) : null}
-                        {showWhatsappButton ? (
-                          <a
-                            className="btn-link-primary success-actionButton"
-                            href={whatsappConfirmationUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Confirm on WhatsApp
-                            <Icon className="icon-inline" name="arrowRight" />
-                          </a>
-                        ) : null}
-                      </div>
-                      {copyFeedback ? <div className="success-inlineFeedback">{copyFeedback}</div> : null}
-                      <div className="success-details">
-                        <p><strong>What happens next?</strong></p>
-                        <ul className="success-list">
-                          <li>Your application will be reviewed by the HR team.</li>
-                          <li>Shortlisted candidates will be contacted for the next stage.</li>
-                          <li>Please keep your phone and email available for updates.</li>
-                        </ul>
-                      </div>
+                    )}
+                  </div>
+
+                  <div className="application-auth-footer" aria-label="Candidate help links">
+                    <span>Need a different page?</span>
+                    <div className="application-auth-footer-links">
+                      <button type="button" className="application-auth-footer-link" onClick={() => openBrowsePage('roles')}>
+                        View openings
+                      </button>
+                      <button type="button" className="application-auth-footer-link" onClick={() => openBrowsePage('status-check')}>
+                        Check status
+                      </button>
+                      <button type="button" className="application-auth-footer-link" onClick={() => openBrowsePage('process')}>
+                        Hiring process
+                      </button>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
             </aside>
 
             <aside className="application-spotlight-shell" aria-label="Application overview">
               <div className="application-spotlight">
                 <span className="application-spotlight-chip">
                   <Icon className="icon-inline" name="shield" />
-                  Secure candidate flow
+                  Enterprise-grade application security
                 </span>
 
                 <div className="application-spotlight-bottom">
                   <div className="application-spotlight-copy">
-                    <h2>A cleaner hiring journey starts here</h2>
-                    <p>Move through a guided, secure application flow built for manual HR review and better candidate follow-up.</p>
+                    <h2>Smarter hiring starts here</h2>
+                    <p>Move through a guided NT Woods application experience designed for cleaner intake, secure submission, and faster HR follow-up.</p>
                   </div>
 
                   <div className="application-spotlight-feature">
-                    <span>Current role view</span>
+                    <span>Live role snapshot</span>
                     <strong>{selectedPosition?.value ? selectedPosition.label : rolePanelTitle}</strong>
                     <p>
                       {selectedPosition?.value
