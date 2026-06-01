@@ -132,6 +132,14 @@ function Icon({ name, className = '', title }) {
           <path d="m13 5 7 7-7 7" />
         </svg>
       );
+    case 'arrowLeft':
+      return (
+        <svg {...sharedProps}>
+          {title ? <title>{title}</title> : null}
+          <path d="M19 12H5" />
+          <path d="m11 5-7 7 7 7" />
+        </svg>
+      );
     case 'check':
       return (
         <svg {...sharedProps}>
@@ -755,7 +763,7 @@ function App() {
       case 'RESET': return { token: '', status: 'ready' };
       default: return state;
     }
-  }, { token: '', status: 'loading' });
+  }, { token: '', status: 'ready' });
 
   const [submitState, setSubmitState] = useState({
     isSubmitting: false,
@@ -1679,8 +1687,22 @@ function App() {
         : turnstile.status === 'expired'
           ? 'Verification expired. Please verify again before submitting.'
           : turnstile.status === 'loading'
-            ? 'Preparing the secure verification widget. This usually takes a moment.'
-            : 'Complete the secure verification before submitting your application.';
+        ? 'Preparing the secure verification widget. This usually takes a moment.'
+        : 'Complete the secure verification before submitting your application.';
+  const applicationSpotlightStats = [
+    {
+      value: String(usingDynamicJobs ? availableRoleCount : Math.max(availableRoleCount - 1, 1)).padStart(2, '0'),
+      label: usingDynamicJobs ? 'Approved roles' : 'Role tracks open',
+    },
+    {
+      value: totalDynamicOpenings > 0 ? `${totalDynamicOpenings}+` : '4-Step',
+      label: totalDynamicOpenings > 0 ? 'Openings listed' : 'Guided apply flow',
+    },
+    {
+      value: selectedFile ? fileTypeLabel(selectedFile).toUpperCase() : verificationLabel,
+      label: selectedFile ? 'Resume status' : 'Verification state',
+    },
+  ];
   const submittedWhatsappMessage = [
     'Hello NT Woods HR team,',
     'I have completed my careers application.',
@@ -1749,16 +1771,31 @@ function App() {
             </span>
           </a>
 
-          <nav className="nav-links" aria-label="Page navigation">
-            <a href="#roles" onClick={(event) => handleBrowseNavigation(event, 'roles')}>Open Roles</a>
-            <a href="#process" onClick={(event) => handleBrowseNavigation(event, 'process')}>Hiring Process</a>
-            <a href="#status-check" onClick={(event) => handleBrowseNavigation(event, 'status-check')}>Check Status</a>
-            <a href="#faq" onClick={(event) => handleBrowseNavigation(event, 'faq')}>FAQ</a>
-          </nav>
+          {isApplyView ? (
+            <div className="apply-header-actions">
+              <button type="button" className="btn-link-secondary apply-header-back" onClick={() => openBrowsePage('roles')}>
+                <Icon className="icon-inline" name="arrowLeft" />
+                <span>Back to openings</span>
+              </button>
+              <span className="apply-header-note">
+                <Icon className="icon-inline" name="shield" />
+                Secure candidate workspace
+              </span>
+            </div>
+          ) : (
+            <>
+              <nav className="nav-links" aria-label="Page navigation">
+                <a href="#roles" onClick={(event) => handleBrowseNavigation(event, 'roles')}>Open Roles</a>
+                <a href="#process" onClick={(event) => handleBrowseNavigation(event, 'process')}>Hiring Process</a>
+                <a href="#status-check" onClick={(event) => handleBrowseNavigation(event, 'status-check')}>Check Status</a>
+                <a href="#faq" onClick={(event) => handleBrowseNavigation(event, 'faq')}>FAQ</a>
+              </nav>
 
-          <a className="nav-cta" href="#apply-form" onClick={(event) => handleApplyNavigation(event, '', 'contact')}>
-            <Icon className="icon-inline" name="send" /> Apply Now
-          </a>
+              <a className="nav-cta" href="#apply-form" onClick={(event) => handleApplyNavigation(event, '', 'contact')}>
+                <Icon className="icon-inline" name="send" /> Apply Now
+              </a>
+            </>
+          )}
         </div>
       </header>
 
@@ -2012,17 +2049,18 @@ function App() {
           </>
         ) : (
           <section className="section apply-section" id="apply-form" aria-label="Application form">
-            <div className="page-shell">
-              <aside className="application-shell application-shell-full">
-              <div ref={applicationCardRef} className="application-card">
+            <div className="page-shell apply-auth-grid">
+              <aside className="application-shell application-shell-form">
+              <div ref={applicationCardRef} className="application-card application-card-auth">
                 <div className="application-page-header">
-                  <button type="button" className="btn-link-secondary application-page-back" onClick={() => openBrowsePage('roles')}>
-                    Back to openings
-                  </button>
+                  <span className="apply-kicker-badge">
+                    <Icon className="icon-inline" name="shield" />
+                    Welcome candidate
+                  </span>
                   <div>
                     <span className="application-stage-kicker">Dedicated application page</span>
                     <h1 id="apply-page-title" className="application-page-title">Complete your application</h1>
-                    <p className="application-page-copy">Complete the guided form here without the rest of the landing page getting in the way.</p>
+                    <p className="application-page-copy">Share your details, choose the right role, upload your CV, and finish the secure verification flow in one place.</p>
                   </div>
                 </div>
                 <div className="application-stage-rail" aria-label="Current form status">
@@ -2058,7 +2096,7 @@ function App() {
                         <div className="form-icon" aria-hidden="true">
                           <Icon className="icon-lg" name="briefcase" />
                         </div>
-                        <span className="form-tag">Protected 2-step application</span>
+                        <span className="form-tag">Manual HR review</span>
                       </div>
                       <h2>Submit your application</h2>
                       <p className="subtitle">Fill in your basic details, upload your CV, and complete verification before final submission.</p>
@@ -2513,6 +2551,51 @@ function App() {
                     </div>
                   </div>
                 )}
+              </div>
+            </aside>
+
+            <aside className="application-spotlight-shell" aria-label="Application overview">
+              <div className="application-spotlight">
+                <span className="application-spotlight-chip">
+                  <Icon className="icon-inline" name="shield" />
+                  Secure candidate flow
+                </span>
+
+                <div className="application-spotlight-bottom">
+                  <div className="application-spotlight-copy">
+                    <h2>A cleaner hiring journey starts here</h2>
+                    <p>Move through a guided, secure application flow built for manual HR review and better candidate follow-up.</p>
+                  </div>
+
+                  <div className="application-spotlight-feature">
+                    <span>Current role view</span>
+                    <strong>{selectedPosition?.value ? selectedPosition.label : rolePanelTitle}</strong>
+                    <p>
+                      {selectedPosition?.value
+                        ? selectedPosition.dynamic
+                          ? 'This selection is coming from the live approved roles list and can still be updated before final submission.'
+                          : 'This role is currently selected in your form and can be changed anytime in Step 2.'
+                        : rolePanelDescription}
+                    </p>
+                    <div className="application-spotlight-role-pills">
+                      {featuredRoleCards.slice(0, 3).map((card) => (
+                        <span key={card.key}>
+                          {card.title}
+                          {card.openingsLabel ? <small>{card.openingsLabel}</small> : null}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="application-spotlight-stats" aria-label="Application highlights">
+                    {applicationSpotlightStats.map((item) => (
+                      <article className="application-spotlight-stat" key={item.label}>
+                        <strong>{item.value}</strong>
+                        <span>{item.label}</span>
+                      </article>
+                    ))}
+                  </div>
+                </div>
               </div>
             </aside>
           </div>
